@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="도아전기">
+<title>도아전기</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{--navy:#1A3A5C;--blue:#2E6DA4;--bg:#F2F5FA;--white:#fff;--border:#DDE6F0;--text:#1A3A5C;--text2:#758AA0;--red:#EF4444}
+body{font-family:-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;background:var(--bg);color:var(--text);max-width:430px;margin:0 auto;min-height:100vh}
+#hdr{background:var(--navy);color:#fff;padding:14px 16px 12px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+#hdr h1{font-size:17px;font-weight:600}
+#hdr p{font-size:11px;opacity:.65;margin-top:1px}
+#hdr-av{width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600}
+#main{padding:14px 12px 80px}
+#nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:430px;background:var(--white);border-top:0.5px solid var(--border);display:grid;grid-template-columns:repeat(5,1fr);padding:6px 0 12px;z-index:100}
+.nb{display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;padding:4px 0;border:none;background:none;color:var(--text2);font-size:10px;font-family:inherit}
+.nb svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.nb.on{color:var(--navy);font-weight:600}
+.card{background:var(--white);border:0.5px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}
+.stat{background:var(--white);border:0.5px solid var(--border);border-radius:10px;padding:12px 14px}
+.stat-n{font-size:26px;font-weight:600;color:var(--navy)}
+.stat-l{font-size:11px;color:var(--text2);margin-top:2px}
+.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:500}
+.bi{background:#DBEAFE;color:#1D4ED8}
+.bd{background:#D1FAE5;color:#065F46}
+.bw{background:#FEF3C7;color:#92400E}
+.bh{background:#F1F5F9;color:#64748B}
+.sec-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.sec-t{font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.06em}
+.sec-a{font-size:12px;color:var(--blue);font-weight:500;cursor:pointer;background:none;border:none;font-family:inherit}
+.fab{position:fixed;bottom:76px;right:50%;transform:translateX(calc(215px));width:52px;height:52px;border-radius:50%;background:var(--navy);color:#fff;border:none;cursor:pointer;font-size:28px;display:none;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(26,58,92,.4);z-index:99;line-height:1}
+#sbg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200}
+#sbg.on{display:block}
+#sheet{position:fixed;bottom:0;left:50%;transform:translateX(-50%) translateY(100%);width:100%;max-width:430px;background:var(--white);border-radius:18px 18px 0 0;padding:20px 16px 28px;z-index:201;transition:transform .28s cubic-bezier(.32,.72,0,1);max-height:88vh;overflow-y:auto}
+#sheet.on{transform:translateX(-50%) translateY(0)}
+.sh{width:36px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 16px}
+.st{font-size:16px;font-weight:600;margin-bottom:16px;color:var(--navy)}
+.fg{margin-bottom:12px}
+.fl{font-size:12px;font-weight:500;color:var(--text2);margin-bottom:5px;display:block}
+.fi{width:100%;padding:11px 12px;border:0.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;color:var(--text);background:var(--white);outline:none;appearance:none;-webkit-appearance:none}
+.fi:focus{border-color:var(--blue);outline:2px solid rgba(46,109,164,.2)}
+.fr{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.btn{width:100%;padding:13px;border-radius:10px;border:none;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit}
+.bp{background:var(--navy);color:#fff}
+.bp:active{background:var(--blue)}
+.bg{background:transparent;color:var(--red);margin-top:8px}
+.bs{padding:7px 14px;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;border:0.5px solid var(--border);background:var(--white);color:var(--navy)}
+#toast{position:fixed;top:80px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;padding:10px 20px;border-radius:24px;font-size:13px;font-weight:500;z-index:300;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
+#toast.on{opacity:1}
+.li{background:var(--white);border:0.5px solid var(--border);border-radius:12px;padding:13px 14px;margin-bottom:8px}
+.lt{font-size:15px;font-weight:600;color:var(--text);margin-bottom:3px}
+.ls{font-size:12px;color:var(--text2)}
+.lm{display:flex;gap:6px;align-items:center;margin-top:5px;flex-wrap:wrap}
+.la{display:flex;gap:6px;margin-top:10px;border-top:0.5px solid var(--border);padding-top:10px}
+.av{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;flex-shrink:0}
+.empty{text-align:center;padding:48px 20px;color:var(--text2)}
+.ei{font-size:40px;margin-bottom:10px;opacity:.35}
+.et{font-size:14px}
+.es{font-size:12px;margin-top:4px;opacity:.7}
+.fc{display:flex;gap:6px;margin-bottom:12px;overflow-x:auto;padding-bottom:2px}
+.fc::-webkit-scrollbar{display:none}
+.fcc{flex-shrink:0;padding:5px 13px;border-radius:20px;font-size:12px;font-weight:500;cursor:pointer;border:0.5px solid var(--border);background:var(--white);color:var(--text2)}
+.fcc.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.loading{display:flex;align-items:center;justify-content:center;padding:48px;gap:10px;color:var(--text2);font-size:13px}
+.spin{width:18px;height:18px;border:2.5px solid var(--border);border-top-color:var(--blue);border-radius:50%;animation:sp .7s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.qt{width:100%;border-collapse:collapse;font-size:13px}
+.qt th{background:var(--navy);color:#fff;padding:8px 10px;text-align:left;font-weight:500}
+.qt td{padding:8px 10px;border-bottom:0.5px solid var(--border)}
+.qt tr:nth-child(even) td{background:var(--bg)}
+.divider{height:0.5px;background:var(--border);margin:10px 0}
+</style>
+</head>
+<body>
+<div id="hdr">
+  <div>
+    <h1 id="hdr-t">도아전기</h1>
+    <p id="hdr-s">오늘도 안전하게!</p>
+  </div>
+  <div id="hdr-av">한</div>
+</div>
+<main id="main"><div class="loading"><div class="spin"></div>불러오는 중...</div></main>
+<nav id="nav">
+  <button class="nb on" onclick="go('home')" id="nb-home">
+    <svg viewBox="0 0 24 24"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z"/><path d="M9 21V12h6v9"/></svg>홈
+  </button>
+  <button class="nb" onclick="go('sites')" id="nb-sites">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="10" r="3"/><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/></svg>현장
+  </button>
+  <button class="nb" onclick="go('schedule')" id="nb-schedule">
+    <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>일정
+  </button>
+  <button class="nb" onclick="go('quotes')" id="nb-quotes">
+    <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>견적
+  </button>
+  <button class="nb" onclick="go('team')" id="nb-team">
+    <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>팀원
+  </button>
+</nav>
+<button class="fab" id="fab" onclick="openAdd()">+</button>
+<div id="sbg" onclick="closeSheet()"></div>
+<div id="sheet"><div class="sh"></div><div id="sc"></div></div>
+<div id="toast"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script>
+const SURL='https://rqxzazdpduosdjfikaon.supabase.co'
+const SKEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJxeHphemRwZHVvc2RqZmlrYW9uIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5OTU2MzEsImV4cCI6MjA5NDU3MTYzMX0.qQsaX18gZv9rv2LwXT6hp22fRrG6-Gu4na-HDGoAssk'
+const db=supabase.createClient(SURL,SKEY)
+let screen='home',sites=[],members=[],schedules=[],quotes=[],sFilter='전체',wOff=0,editId=null,qNum=0
+
+async function go(s){
+  screen=s
+  document.querySelectorAll('.nb').forEach(b=>b.classList.remove('on'))
+  document.getElementById('nb-'+s).classList.add('on')
+  const fab=document.getElementById('fab')
+  fab.style.display=['sites','team','quotes'].includes(s)?'flex':'none'
+  await render()
+}
+
+async function render(){
+  document.getElementById('main').innerHTML='<div class="loading"><div class="spin"></div>불러오는 중...</div>'
+  if(screen==='home') await rHome()
+  else if(screen==='sites') await rSites()
+  else if(screen==='schedule') await rSchedule()
+  else if(screen==='quotes') await rQuotes()
+  else if(screen==='team') await rTeam()
+}
+
+function toast(msg,err=false){
+  const t=document.getElementById('toast')
+  t.textContent=msg;t.style.background=err?'#E74C3C':'#1A3A5C'
+  t.classList.add('on');setTimeout(()=>t.classList.remove('on'),2200)
+}
+function openSheet(html){document.getElementById('sc').innerHTML=html;document.getElementById('sbg').classList.add('on');document.getElementById('sheet').classList.add('on')}
+function closeSheet(){document.getElementById('sbg').classList.remove('on');document.getElementById('sheet').classList.remove('on');editId=null}
+function openAdd(){if(screen==='sites')showSiteForm();else if(screen==='team')showMemberForm();else if(screen==='quotes')showQuoteForm()}
+function v(id){return document.getElementById(id)?.value?.trim()||''}
+function bc(s){return s==='진행중'?'bi':s==='완료'?'bd':s==='대기중'?'bw':'bh'}
+function today(){return new Date().toISOString().slice(0,10)}
+function fd(d){return d.toISOString().slice(0,10)}
+function getWeek(off){const d=new Date();d.setDate(d.getDate()-d.getDay()+off*7);return Array.from({length:7},(_,i)=>{const x=new Date(d);x.setDate(d.getDate()+i);return x})}
+
+// ── HOME
+async function rHome(){
+  const[sr,mr,scr]=await Promise.all([
+    db.from('sites').select('*').order('created_at',{ascending:false}),
+    db.from('members').select('*'),
+    db.from('schedules').select('*,site:sites(name),member:members(name)').eq('work_date',today())
+  ])
+  sites=sr.data||[];members=mr.data||[];schedules=scr.data||[]
+  const d=new Date(),days=['일','월','화','수','목','금','토']
+  document.getElementById('hdr-t').textContent='도아전기'
+  document.getElementById('hdr-s').textContent=`${d.getMonth()+1}월 ${d.getDate()}일 ${days[d.getDay()]}요일`
+  const ts=schedules.reduce((a,s)=>{
+    if(!a.find(x=>x.sid===s.site_id))a.push({sid:s.site_id,sn:s.site?.name||'',ms:[]})
+    a.find(x=>x.sid===s.site_id).ms.push(s.member?.name||'')
+    return a
+  },[])
+  document.getElementById('main').innerHTML=`
+    <div class="stats">
+      <div class="stat"><div class="stat-n">${sites.filter(s=>s.status==='진행중').length}</div><div class="stat-l">진행중 현장</div></div>
+      <div class="stat"><div class="stat-n">${members.length}</div><div class="stat-l">팀원 수</div></div>
+      <div class="stat"><div class="stat-n">${schedules.length}</div><div class="stat-l">오늘 투입 인원</div></div>
+      <div class="stat"><div class="stat-n">${sites.filter(s=>s.status==='대기중').length}</div><div class="stat-l">대기중 현장</div></div>
+    </div>
+    <div class="sec-hdr"><div class="sec-t">오늘의 현장</div><button class="sec-a" onclick="go('schedule')">일정 보기</button></div>
+    ${ts.length?ts.map(s=>`<div class="card"><div style="font-size:15px;font-weight:600">${s.sn}</div><div style="font-size:12px;color:var(--text2);margin-top:4px">투입: ${s.ms.join(' · ')}</div></div>`).join(''):'<div class="card"><div style="text-align:center;color:var(--text2);padding:8px 0;font-size:13px">오늘 배정된 일정이 없어요</div></div>'}
+    <div class="sec-hdr" style="margin-top:4px"><div class="sec-t">최근 현장</div><button class="sec-a" onclick="go('sites')">전체보기</button></div>
+    ${sites.slice(0,3).map(s=>`<div class="li"><div class="lt">${s.name}</div><div class="lm"><span class="badge ${bc(s.status)}">${s.status}</span><span class="ls">${s.client||''}</span></div></div>`).join('')||'<div class="empty"><div class="et">현장을 추가해보세요</div></div>'}
+  `
+}
+
+// ── SITES
+async function rSites(){
+  const{data}=await db.from('sites').select('*').order('created_at',{ascending:false})
+  sites=data||[]
+  document.getElementById('hdr-t').textContent='현장 관리'
+  document.getElementById('hdr-s').textContent=`총 ${sites.length}개 현장`
+  const fl=['전체','진행중','대기중','완료','보류']
+  const ft=sFilter==='전체'?sites:sites.filter(s=>s.status===sFilter)
+  document.getElementById('main').innerHTML=`
+    <div class="fc">${fl.map(f=>`<div class="fcc ${sFilter===f?'on':''}" onclick="setSF('${f}')">${f}</div>`).join('')}</div>
+    ${ft.length?ft.map(s=>`
+      <div class="li">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div style="flex:1">
+            <div class="lt">${s.name}</div>
+            <div class="ls">${s.client||'발주처 미입력'}${s.address?' · '+s.address:''}</div>
+            <div class="lm"><span class="badge ${bc(s.status)}">${s.status}</span>${s.start_date?`<span class="ls">${s.start_date}${s.end_date?' ~ '+s.end_date:''}</span>`:''}</div>
+          </div>
+        </div>
+        <div class="la">
+          ${s.phone?`<button class="bs" onclick="location.href='tel:${s.phone}';event.stopPropagation()">📞 전화</button>`:''}
+          <button class="bs" onclick="editSite('${s.id}')">✏️ 수정</button>
+          <button class="bs" style="color:var(--red)" onclick="delSite('${s.id}')">삭제</button>
+        </div>
+      </div>`).join(''):`<div class="empty"><div class="ei">📍</div><div class="et">현장이 없어요</div><div class="es">+ 버튼으로 추가하세요</div></div>`}
+  `
+}
+function setSF(f){sFilter=f;rSites()}
+function showSiteForm(s=null){
+  editId=s?.id||null
+  openSheet(`
+    <div class="st">${s?'현장 수정':'현장 추가'}</div>
+    <div class="fg"><label class="fl">현장명 *</label><input class="fi" id="f-name" placeholder="예) 강남구 OO빌딩" value="${s?.name||''}"></div>
+    <div class="fg"><label class="fl">발주처</label><input class="fi" id="f-client" placeholder="예) OO건설(주)" value="${s?.client||''}"></div>
+    <div class="fg"><label class="fl">주소</label><input class="fi" id="f-addr" placeholder="예) 서울시 강남구 역삼동" value="${s?.address||''}"></div>
+    <div class="fg"><label class="fl">연락처</label><input class="fi" id="f-phone" type="tel" placeholder="010-0000-0000" value="${s?.phone||''}"></div>
+    <div class="fr"><div class="fg"><label class="fl">착공일</label><input class="fi" id="f-start" type="date" value="${s?.start_date||''}"></div><div class="fg"><label class="fl">준공일</label><input class="fi" id="f-end" type="date" value="${s?.end_date||''}"></div></div>
+    <div class="fg"><label class="fl">상태</label><select class="fi" id="f-status" style="background:#fff">${['대기중','진행중','완료','보류'].map(x=>`<option ${(s?.status||'대기중')===x?'selected':''}>${x}</option>`).join('')}</select></div>
+    <div class="fg"><label class="fl">메모</label><textarea class="fi" id="f-memo" rows="2" placeholder="특이사항 등">${s?.memo||''}</textarea></div>
+    <button class="btn bp" onclick="saveSite()">${s?'저장하기':'추가하기'}</button>
+    ${s?`<button class="btn bg" onclick="delSite('${s.id}')">이 현장 삭제</button>`:''}
+  `)
+}
+async function editSite(id){showSiteForm(sites.find(x=>x.id===id))}
+async function saveSite(){
+  const name=document.getElementById('f-name').value.trim()
+  if(!name){toast('현장명을 입력하세요',true);return}
+  const data={name,client:v('f-client'),address:v('f-addr'),phone:v('f-phone'),start_date:v('f-start')||null,end_date:v('f-end')||null,status:v('f-status'),memo:v('f-memo')}
+  if(editId){await db.from('sites').update(data).eq('id',editId);toast('현장이 수정됐어요')}
+  else{await db.from('sites').insert(data);toast('현장이 추가됐어요')}
+  closeSheet();rSites()
+}
+async function delSite(id){
+  if(!confirm('이 현장을 삭제할까요?'))return
+  await db.from('sites').delete().eq('id',id);toast('삭제했어요');closeSheet();rSites()
+}
+
+// ── SCHEDULE
+async function rSchedule(){
+  document.getElementById('hdr-t').textContent='일정 관리'
+  const[sr,mr]=await Promise.all([db.from('sites').select('id,name').eq('status','진행중'),db.from('members').select('*')])
+  sites=sr.data||[];members=mr.data||[]
+  const dates=getWeek(wOff),ds=dates.map(d=>fd(d))
+  const{data:sc}=await db.from('schedules').select('*,site:sites(name),member:members(name)').in('work_date',ds)
+  schedules=sc||[]
+  const days=['일','월','화','수','목','금','토'],td=today()
+  document.getElementById('hdr-s').textContent=`${dates[0].getMonth()+1}월 ${dates[0].getDate()}일 ~ ${dates[6].getDate()}일`
+  document.getElementById('main').innerHTML=`
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <button class="bs" onclick="wOff--;rSchedule()">◀ 이전</button>
+      <div style="font-size:13px;font-weight:600;color:var(--navy)">${wOff===0?'이번 주':wOff>0?`+${wOff}주`:`${wOff}주`}</div>
+      <button class="bs" onclick="wOff++;rSchedule()">다음 ▶</button>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:14px">
+      ${dates.map(d=>{
+        const dstr=fd(d),isT=dstr===td,dsc=schedules.filter(s=>s.work_date===dstr)
+        return `<div>
+          <div style="text-align:center;font-size:10px;font-weight:600;color:${isT?'var(--blue)':'var(--text2)'};padding-bottom:4px">${days[d.getDay()]}<br><span style="font-size:12px${isT?';color:var(--blue)':''}">${d.getDate()}</span></div>
+          <div style="background:var(--white);border:0.5px solid ${isT?'var(--blue)':'var(--border)'};border-radius:8px;padding:4px 2px;min-height:56px;cursor:pointer;text-align:center" onclick="openScAdd('${dstr}')">
+            ${dsc.slice(0,3).map(s=>`<div style="background:var(--navy);color:#fff;border-radius:3px;padding:2px 3px;margin-bottom:2px;font-size:8px;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.member?.name||'?'}</div>`).join('')}
+            ${dsc.length>3?`<div style="font-size:8px;color:var(--text2)">+${dsc.length-3}</div>`:''}
+            ${!dsc.length?`<div style="font-size:16px;color:var(--border);margin-top:8px;line-height:1">+</div>`:''}
+          </div>
+        </div>`
+      }).join('')}
+    </div>
+    <div class="sec-hdr"><div class="sec-t">팀원별 현황</div></div>
+    ${members.length?members.map(m=>{
+      const my=schedules.filter(s=>s.member_id===m.id)
+      const colors=['#DBEAFE:#1D4ED8','#D1FAE5:#065F46','#FEE2E2:#991B1B','#EDE9FE:#5B21B6','#FEF9C3:#854D0E']
+      const idx=members.indexOf(m),[bg,fg]=colors[idx%5].split(':')
+      return `<div class="li" style="display:flex;align-items:center;gap:12px">
+        <div class="av" style="background:${bg};color:${fg}">${m.name[0]}</div>
+        <div style="flex:1"><div style="font-size:14px;font-weight:600">${m.name}</div>
+        <div style="font-size:12px;color:var(--text2)">${my.length?my.map(s=>s.site?.name).filter((v,i,a)=>a.indexOf(v)===i).join(', '):'이번 주 배정 없음'}</div></div>
+      </div>`
+    }).join(''):'<div class="empty"><div class="et">팀원을 먼저 추가하세요</div></div>'}
+  `
+}
+function openScAdd(date){
+  if(!sites.length){toast('진행중인 현장이 없어요',true);return}
+  if(!members.length){toast('팀원을 먼저 추가하세요',true);return}
+  const ex=schedules.filter(s=>s.work_date===date)
+  openSheet(`
+    <div class="st">${date} 배정</div>
+    ${ex.length?`<div style="margin-bottom:14px;background:var(--bg);border-radius:8px;padding:10px 12px">${ex.map(s=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:0.5px solid var(--border)"><span style="font-size:13px"><b>${s.member?.name}</b> → ${s.site?.name}</span><button onclick="delSc('${s.id}')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:12px;font-weight:500">삭제</button></div>`).join('')}</div>`:'' }
+    <div class="fg"><label class="fl">팀원 선택</label><select class="fi" id="f-mem" style="background:#fff">${members.map(m=>`<option value="${m.id}">${m.name}</option>`).join('')}</select></div>
+    <div class="fg"><label class="fl">현장 선택</label><select class="fi" id="f-site" style="background:#fff">${sites.map(s=>`<option value="${s.id}">${s.name}</option>`).join('')}</select></div>
+    <input type="hidden" id="f-date" value="${date}">
+    <button class="btn bp" onclick="saveSc()">배정 추가</button>
+  `)
+}
+async function saveSc(){
+  await db.from('schedules').insert({member_id:v('f-mem'),site_id:v('f-site'),work_date:v('f-date')})
+  toast('배정됐어요');closeSheet();rSchedule()
+}
+async function delSc(id){
+  await db.from('schedules').delete().eq('id',id);toast('배정이 삭제됐어요');closeSheet();rSchedule()
+}
+
+// ── QUOTES
+async function rQuotes(){
+  document.getElementById('hdr-t').textContent='견적서'
+  const[qr,sr]=await Promise.all([db.from('quotes').select('*,site:sites(name)').order('created_at',{ascending:false}),db.from('sites').select('id,name')])
+  quotes=qr.data||[];sites=sr.data||[]
+  document.getElementById('hdr-s').textContent=`총 ${quotes.length}건`
+  document.getElementById('main').innerHTML=`
+    ${quotes.length?quotes.map(q=>`
+      <div class="li" onclick="viewQ('${q.id}')">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div><div class="lt">${q.site?.name||q.client||'견적서'}</div><div class="ls">${q.created_at?.slice(0,10)||''}</div></div>
+          <div style="text-align:right"><div style="font-size:15px;font-weight:700;color:var(--navy)">${(q.total||0).toLocaleString()}원</div><span class="badge ${q.status==='완료'?'bd':q.status==='발송'?'bi':'bw'}">${q.status}</span></div>
+        </div>
+      </div>`).join(''):`<div class="empty"><div class="ei">📄</div><div class="et">견적서가 없어요</div><div class="es">+ 버튼으로 작성하세요</div></div>`}
+  `
+}
+function showQuoteForm(){
+  qNum=0
+  openSheet(`
+    <div class="st">새 견적서</div>
+    <div class="fg"><label class="fl">현장</label><select class="fi" id="f-qs" style="background:#fff"><option value="">현장 선택 (선택사항)</option>${sites.map(s=>`<option value="${s.id}">${s.name}</option>`).join('')}</select></div>
+    <div class="fg"><label class="fl">발주처</label><input class="fi" id="f-qc" placeholder="발주처명"></div>
+    <div id="qitems"></div>
+    <button onclick="addQI()" style="width:100%;padding:10px;border:0.5px dashed var(--border);border-radius:8px;background:none;color:var(--blue);font-size:13px;font-weight:500;cursor:pointer;margin-bottom:12px;font-family:inherit">+ 품목 추가</button>
+    <button class="btn bp" onclick="saveQ()">견적서 저장</button>
+  `)
+  addQI();addQI();addQI()
+}
+function addQI(){
+  qNum++;const n=qNum
+  const d=document.createElement('div');d.id=`qi${n}`;d.style.marginBottom='8px'
+  d.innerHTML=`<div style="display:grid;grid-template-columns:2fr 1fr 1.3fr auto;gap:5px;align-items:center"><input class="fi" placeholder="품명" id="qn${n}"><input class="fi" type="number" placeholder="수량" id="qq${n}" value="1" min="1"><input class="fi" type="number" placeholder="단가(원)" id="qp${n}"><button onclick="document.getElementById('qi${n}').remove()" style="background:none;border:none;color:var(--red);font-size:20px;cursor:pointer;padding:4px;line-height:1">×</button></div>`
+  document.getElementById('qitems').appendChild(d)
+}
+async function saveQ(){
+  const items=[];let total=0
+  document.querySelectorAll('[id^="qi"]').forEach(el=>{
+    const n=el.id.replace('qi','')
+    const name=document.getElementById('qn'+n)?.value?.trim()
+    const qty=parseInt(document.getElementById('qq'+n)?.value||1)
+    const price=parseInt(document.getElementById('qp'+n)?.value||0)
+    if(name&&price>0){items.push({name,qty,price,total:qty*price});total+=qty*price}
+  })
+  if(!items.length){toast('품목을 추가하고 단가를 입력하세요',true);return}
+  await db.from('quotes').insert({site_id:v('f-qs')||null,client:v('f-qc'),items,total,status:'작성중'})
+  toast('견적서가 저장됐어요');closeSheet();rQuotes()
+}
+async function viewQ(id){
+  const q=quotes.find(x=>x.id===id);if(!q)return
+  const items=q.items||[],vat=Math.round(q.total*.1)
+  openSheet(`
+    <div class="st">${q.site?.name||q.client||'견적서'}</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <span style="font-size:12px;color:var(--text2)">${q.created_at?.slice(0,10)||''}</span>
+      <select onchange="updQS('${q.id}',this.value)" style="border:0.5px solid var(--border);border-radius:6px;padding:4px 8px;font-size:12px;color:var(--blue);font-weight:500;background:#fff;font-family:inherit">
+        ${['작성중','발송','완료'].map(s=>`<option ${q.status===s?'selected':''}>${s}</option>`).join('')}
+      </select>
+    </div>
+    <table class="qt"><thead><tr><th>품명</th><th style="text-align:right">수량</th><th style="text-align:right">단가</th><th style="text-align:right">금액</th></tr></thead>
+    <tbody>${items.map(i=>`<tr><td>${i.name}</td><td style="text-align:right">${i.qty}</td><td style="text-align:right">${i.price.toLocaleString()}</td><td style="text-align:right;font-weight:500">${i.total.toLocaleString()}</td></tr>`).join('')}</tbody></table>
+    <div style="background:var(--bg);border-radius:8px;padding:12px 14px;margin-top:10px">
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:5px"><span>공급가액</span><span>${q.total.toLocaleString()}원</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text2);margin-bottom:8px"><span>부가세(10%)</span><span>${vat.toLocaleString()}원</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:16px;font-weight:700;color:var(--navy);border-top:0.5px solid var(--border);padding-top:8px"><span>합계</span><span>${(q.total+vat).toLocaleString()}원</span></div>
+    </div>
+    <button class="btn bg" onclick="delQ('${q.id}')">견적서 삭제</button>
+  `)
+}
+async function updQS(id,status){await db.from('quotes').update({status}).eq('id',id);quotes=quotes.map(q=>q.id===id?{...q,status}:q);toast('상태 변경됐어요')}
+async function delQ(id){if(!confirm('이 견적서를 삭제할까요?'))return;await db.from('quotes').delete().eq('id',id);toast('삭제했어요');closeSheet();rQuotes()}
+
+// ── TEAM
+async function rTeam(){
+  document.getElementById('hdr-t').textContent='팀원 관리'
+  const{data}=await db.from('members').select('*').order('created_at')
+  members=data||[]
+  document.getElementById('hdr-s').textContent=`총 ${members.length}명`
+  const colors=['#DBEAFE:#1D4ED8','#D1FAE5:#065F46','#FEE2E2:#991B1B','#EDE9FE:#5B21B6','#FEF9C3:#854D0E','#E0F2FE:#0369A1','#FCE7F3:#9D174D']
+  document.getElementById('main').innerHTML=`
+    ${members.length?members.map((m,i)=>{
+      const[bg,fg]=colors[i%colors.length].split(':')
+      return `<div class="li">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div class="av" style="background:${bg};color:${fg}">${m.name[0]}</div>
+          <div style="flex:1"><div style="font-size:15px;font-weight:600">${m.name}</div><div style="font-size:12px;color:var(--text2)">${m.role||'내선전공'}${m.phone?' · '+m.phone:''}</div></div>
+          ${m.phone?`<a href="tel:${m.phone}" style="font-size:22px;text-decoration:none" onclick="event.stopPropagation()">📞</a>`:''}
+        </div>
+        <div class="la">
+          <button class="bs" onclick="editMem('${m.id}')">✏️ 수정</button>
+          <button class="bs" style="color:var(--red)" onclick="delMem('${m.id}')">삭제</button>
+        </div>
+      </div>`
+    }).join(''):`<div class="empty"><div class="ei">👷</div><div class="et">팀원이 없어요</div><div class="es">+ 버튼으로 추가하세요</div></div>`}
+  `
+}
+function showMemberForm(m=null){
+  editId=m?.id||null
+  openSheet(`
+    <div class="st">${m?'팀원 수정':'팀원 추가'}</div>
+    <div class="fg"><label class="fl">이름 *</label><input class="fi" id="f-mn" placeholder="예) 김철수" value="${m?.name||''}"></div>
+    <div class="fg"><label class="fl">직종</label><select class="fi" id="f-mr" style="background:#fff">${['내선전공','전기기사','현장소장','관리자'].map(r=>`<option ${(m?.role||'내선전공')===r?'selected':''}>${r}</option>`).join('')}</select></div>
+    <div class="fg"><label class="fl">연락처</label><input class="fi" id="f-mp" type="tel" placeholder="010-0000-0000" value="${m?.phone||''}"></div>
+    <button class="btn bp" onclick="saveMem()">${m?'저장하기':'추가하기'}</button>
+    ${m?`<button class="btn bg" onclick="delMem('${m.id}')">팀원 삭제</button>`:''}
+  `)
+}
+async function editMem(id){showMemberForm(members.find(m=>m.id===id))}
+async function saveMem(){
+  const name=document.getElementById('f-mn').value.trim()
+  if(!name){toast('이름을 입력하세요',true);return}
+  const data={name,role:v('f-mr'),phone:v('f-mp')}
+  if(editId){await db.from('members').update(data).eq('id',editId);toast('수정됐어요')}
+  else{await db.from('members').insert(data);toast('팀원이 추가됐어요')}
+  closeSheet();rTeam()
+}
+async function delMem(id){
+  if(!confirm('이 팀원을 삭제할까요?'))return
+  await db.from('members').delete().eq('id',id);toast('삭제했어요');closeSheet();rTeam()
+}
+
+document.addEventListener('DOMContentLoaded',()=>go('home'))
+</script>
+</body>
+</html>
