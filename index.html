@@ -192,12 +192,79 @@ async function showLogin(){
   }
   list.innerHTML='<div class="login-lbl">팀원 선택</div>'+members.map((m,i)=>{
     const[bg,fg]=COLORS[i%COLORS.length].split(':')
-    return `<div class="login-member" onclick="loginAs('${m.id}','${m.name}')">
+    return `<div class="login-member" onclick="askPassword('${m.id}','${m.name}','${m.role||'내선전공'}')">
       <div class="login-av" style="background:${bg};color:${fg}">${m.name[0]}</div>
-      <div><div style="font-size:15px;font-weight:500;color:var(--text)">${m.name}</div><div style="font-size:12px;color:var(--text2)">${m.role||'내선전공'}</div></div>
+      <div style="flex:1"><div style="font-size:15px;font-weight:500;color:var(--text)">${m.name}</div><div style="font-size:12px;color:var(--text2)">${m.role||'내선전공'}</div></div>
+      <div style="font-size:18px;color:var(--text2)">›</div>
     </div>`
   }).join('')
 }
+
+function askPassword(id,name,role){
+  // 비밀번호 미설정 팀원은 바로 입력 화면으로
+  openSheet(`
+    <div class="sh"></div>
+    <div style="text-align:center;margin-bottom:20px">
+      <div style="width:52px;height:52px;border-radius:50%;background:#E8F0F8;color:var(--navy);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;margin:0 auto 10px">${name[0]}</div>
+      <div style="font-size:17px;font-weight:600;color:var(--navy)">${name}</div>
+      <div style="font-size:12px;color:var(--text2);margin-top:3px">${role}</div>
+    </div>
+    <div class="fg">
+      <label class="fl">비밀번호</label>
+      <input class="fi" type="password" id="pw-inp" placeholder="비밀번호 입력" onkeydown="if(event.key==='Enter')doLogin('${id}','${name}')">
+    </div>
+    <button class="btn bp" onclick="doLogin('${id}','${name}')">로그인</button>
+  `)
+  setTimeout(()=>document.getElementById('pw-inp')?.focus(),300)
+}
+
+async function doLogin(id,name){
+  const pw=document.getElementById('pw-inp')?.value||''
+  const{data}=await db.from('members').select('password').eq('id',id).single()
+  const savedPw=data?.password||''
+
+  if(savedPw===''&&pw===''){
+    // 비밀번호 미설정 → 최초 설정 안내
+    document.getElementById('sc').innerHTML=`
+      <div style="text-align:center;margin-bottom:20px">
+        <div style="font-size:36px;margin-bottom:10px">🔐</div>
+        <div style="font-size:16px;font-weight:600;color:var(--navy)">처음 로그인이에요!</div>
+        <div style="font-size:13px;color:var(--text2);margin-top:6px">사용할 비밀번호를 설정해주세요</div>
+      </div>
+      <div class="fg"><label class="fl">새 비밀번호</label><input class="fi" type="password" id="pw-new" placeholder="비밀번호 입력"></div>
+      <div class="fg"><label class="fl">비밀번호 확인</label><input class="fi" type="password" id="pw-new2" placeholder="다시 입력"></div>
+      <button class="btn bp" onclick="setFirstPassword('${id}','${name}')">비밀번호 설정하기</button>
+    `
+    return
+  }
+
+  if(pw!==savedPw){
+    toast('비밀번호가 틀렸어요',true)
+    document.getElementById('pw-inp').value=''
+    document.getElementById('pw-inp').focus()
+    return
+  }
+
+  closeSheet()
+  me={id,name,isAdmin:false}
+  localStorage.setItem('doa_user',JSON.stringify(me))
+  showApp();go('home')
+}
+
+async function setFirstPassword(id,name){
+  const pw1=document.getElementById('pw-new')?.value||''
+  const pw2=document.getElementById('pw-new2')?.value||''
+  if(!pw1){toast('비밀번호를 입력하세요',true);return}
+  if(pw1!==pw2){toast('비밀번호가 일치하지 않아요',true);return}
+  if(pw1.length<4){toast('4자리 이상 입력하세요',true);return}
+  await db.from('members').update({password:pw1}).eq('id',id)
+  closeSheet()
+  me={id,name,isAdmin:false}
+  localStorage.setItem('doa_user',JSON.stringify(me))
+  showApp();go('home')
+  toast('비밀번호가 설정됐어요 ✓')
+}
+
 function loginAs(id,name){
   me={id,name,isAdmin:false}
   localStorage.setItem('doa_user',JSON.stringify(me))
@@ -686,9 +753,16 @@ function showMemberForm(m=null){
     <div class="fg"><label class="fl">이름 *</label><input class="fi" id="f-mn" placeholder="예) 김철수" value="${m?.name||''}"></div>
     <div class="fg"><label class="fl">직종</label><select class="fi" id="f-mr" style="background:#fff">${['내선전공','전기기사','현장소장','관리자'].map(r=>`<option ${(m?.role||'내선전공')===r?'selected':''}>${r}</option>`).join('')}</select></div>
     <div class="fg"><label class="fl">연락처</label><input class="fi" id="f-mp" type="tel" placeholder="010-0000-0000" value="${m?.phone||''}"></div>
+    ${m?`<div class="fg"><label class="fl">비밀번호 초기화</label><button onclick="resetMemberPw('${m.id}','${m.name}')" class="bs" style="width:100%;text-align:center;color:var(--red)">🔑 비밀번호 초기화 (다음 로그인 시 재설정)</button></div>`:''}
     <button class="btn bp" onclick="saveMem()">${m?'저장':'추가'}</button>
     ${m?`<button class="btn bg-r" onclick="delMem('${m.id}')">팀원 삭제</button>`:''}
   `)
+}
+async function resetMemberPw(id,name){
+  if(!confirm(`${name}님의 비밀번호를 초기화할까요?\n다음 로그인 시 새 비밀번호를 설정하게 됩니다.`))return
+  await db.from('members').update({password:''}).eq('id',id)
+  toast(`${name}님 비밀번호 초기화 완료`)
+  closeSheet()
 }
 async function editMem(id){showMemberForm(members.find(m=>m.id===id))}
 async function saveMem(){
