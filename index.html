@@ -499,7 +499,7 @@ function renderMats(siteId,siteName,mats){
       <span style="font-size:13px;color:var(--text2)">${done}/${mats.length} 완료</span>
       <div style="display:flex;gap:6px">
         ${mats.length?`<button class="bs" style="color:var(--blue)" onclick="printMatsPDF('${sn}')">📄 PDF</button>`:''}
-        ${me.isAdmin?`<button class="bs" onclick="addMatForm('${siteId}','${sn}')">+ 추가</button>`:''}
+        <button class="bs" onclick="addMatForm('${siteId}','${sn}')">+ 추가</button>
       </div>
     </div>`
   if(mats.length){
