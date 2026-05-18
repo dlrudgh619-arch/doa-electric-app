@@ -612,10 +612,10 @@ async function rSchedule(){
     const day=i+1,dstr=`${scY}-${pad(scMo+1)}-${pad(day)}`
     const isT=dstr===td,dow=new Date(scY,scMo,day).getDay()
     const last=(i+fd+1)%7===0,dayEvts=byDate[dstr]||[]
-    cal+=`<div style="height:76px;overflow:hidden;padding:2px;border-right:${last?'none':'.5px solid var(--border)'};border-bottom:.5px solid var(--border);background:${isT?'#EEF4FF':'#fff'};cursor:pointer" onclick="openEvtAdd('${dstr}')">
+    cal+=`<div style="height:76px;overflow:hidden;padding:2px;border-right:${last?'none':'.5px solid var(--border)'};border-bottom:.5px solid var(--border);background:${isT?'#EEF4FF':'#fff'};cursor:pointer" onclick="openDateSheet('${dstr}')">
       <div style="width:20px;height:20px;border-radius:50%;background:${isT?'var(--blue)':'transparent'};color:${isT?'#fff':dow===0?'#EF4444':dow===6?'#3B82F6':'var(--text)'};display:flex;align-items:center;justify-content:center;margin:0 auto 2px;font-size:11px;font-weight:${isT?700:400}">${day}</div>`
     dayEvts.slice(0,3).forEach(e=>{
-      cal+=`<div onclick="event.stopPropagation();openEvtDetail('${e.id}')" style="background:${e.color||'#1A3A5C'};color:#fff;border-radius:2px;padding:1px 3px;font-size:9px;margin-bottom:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;line-height:1.4">${e.title}</div>`
+      cal+=`<div onclick="event.stopPropagation();openDateSheet('${dstr}')" style="background:${e.color||'#1A3A5C'};color:#fff;border-radius:2px;padding:1px 3px;font-size:9px;margin-bottom:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;line-height:1.4">${e.title}</div>`
     })
     if(dayEvts.length>3) cal+=`<div style="font-size:8px;color:var(--text2);padding-left:2px">+${dayEvts.length-3}개</div>`
     cal+=`</div>`
@@ -626,6 +626,7 @@ async function rSchedule(){
 }
 
 function openEvtAdd(date){
+  editId=null
   evtMems=[]
   const[,mo,d]=date.split('-')
   const cHtml=ECOLS.map((c,i)=>`<div onclick="pickEvtCol('${c}')" data-c="${c}" style="width:28px;height:28px;border-radius:50%;background:${c};cursor:pointer;border:${i===0?'3px solid #333':'3px solid transparent'};box-sizing:border-box"></div>`).join('')
@@ -656,34 +657,94 @@ function togEvtM(id){
 async function saveEvt(){
   const title=document.getElementById('ev-title').value.trim()
   if(!title){toast('일정명을 입력하세요',true);return}
-  const{data:evt}=await db.from('cal_events').insert({
-    title,work_date:v('ev-s')||today(),end_date:v('ev-e')||v('ev-s')||today(),
-    color:document.getElementById('ev-col').value,notes:v('ev-notes')
-  }).select().single()
-  if(evt&&evtMems.length){
-    await db.from('cal_event_members').insert(evtMems.map(mid=>({event_id:evt.id,member_id:mid})))
+  const data={
+    title,
+    work_date:v('ev-s')||today(),
+    end_date:v('ev-e')||v('ev-s')||today(),
+    color:document.getElementById('ev-col').value,
+    notes:v('ev-notes')
   }
-  toast('일정 추가됐어요');closeSheet();rSchedule()
+  if(editId){
+    await db.from('cal_events').update(data).eq('id',editId)
+    await db.from('cal_event_members').delete().eq('event_id',editId)
+    if(evtMems.length) await db.from('cal_event_members').insert(evtMems.map(mid=>({event_id:editId,member_id:mid})))
+    toast('일정이 수정됐어요')
+    editId=null
+  }else{
+    const{data:evt}=await db.from('cal_events').insert(data).select().single()
+    if(evt&&evtMems.length) await db.from('cal_event_members').insert(evtMems.map(mid=>({event_id:evt.id,member_id:mid})))
+    toast('일정 추가됐어요')
+  }
+  closeSheet();rSchedule()
 }
 
-async function openEvtDetail(id){
+// 날짜 시트 — 해당 날 일정 목록 + 추가 버튼
+async function openDateSheet(date){
+  const[,mo,d]=date.split('-')
+  openSheet(`<div class="st">${mo}월 ${parseInt(d)}일</div><div class="loading"><div class="spin"></div></div>`)
+  const{data:evts}=await db.from('cal_events').select('*').eq('work_date',date).order('created_at')
+  const events=evts||[]
+  // 팀원 이름 조회
+  let emMap={}
+  if(events.length){
+    const ids=events.map(e=>e.id)
+    const{data:ems}=await db.from('cal_event_members').select('event_id,member:members(name)').in('event_id',ids)
+    ;(ems||[]).forEach(em=>{if(!emMap[em.event_id])emMap[em.event_id]=[];emMap[em.event_id].push(em.member?.name||'')})
+  }
+  let html=`<div class="st">${mo}월 ${parseInt(d)}일 일정</div>`
+  if(events.length){
+    events.forEach(e=>{
+      const names=(emMap[e.id]||[]).filter(Boolean).join(', ')
+      html+=`<div style="display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:.5px solid var(--border)">
+        <div style="width:10px;height:40px;border-radius:3px;background:${e.color||'#1A3A5C'};flex-shrink:0"></div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.title}</div>
+          ${names?`<div style="font-size:12px;color:var(--text2);margin-top:2px">${names}</div>`:''}
+          ${e.notes?`<div style="font-size:11px;color:var(--text2);margin-top:1px;opacity:.8">${e.notes}</div>`:''}
+        </div>
+        ${me.isAdmin?`<div style="display:flex;gap:6px;flex-shrink:0">
+          <button onclick="openEvtEdit('${e.id}')" style="background:var(--bg);border:.5px solid var(--border);border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;color:var(--navy);font-family:inherit;font-weight:500">수정</button>
+          <button onclick="confirmDelEvt('${e.id}')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:20px;padding:2px;line-height:1">×</button>
+        </div>`:''}
+      </div>`
+    })
+  }else{
+    html+=`<div style="text-align:center;padding:24px 0;color:var(--text2);font-size:13px">이 날 등록된 일정이 없어요</div>`
+  }
+  if(me.isAdmin){
+    html+=`<button class="btn bp" style="margin-top:16px" onclick="openEvtAdd('${date}')">+ 일정 추가하기</button>`
+  }
+  document.getElementById('sc').innerHTML=html
+}
+
+// 일정 수정 폼
+async function openEvtEdit(id){
   const{data:e}=await db.from('cal_events').select('*').eq('id',id).single()
   if(!e)return
-  const{data:ems}=await db.from('cal_event_members').select('member:members(name)').eq('event_id',id)
-  const names=ems?.map(em=>em.member?.name).filter(Boolean).join(', ')||'없음'
-  openSheet(`<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
-    <div style="width:14px;height:14px;border-radius:50%;background:${e.color||'#1A3A5C'};flex-shrink:0"></div>
-    <div class="st" style="margin:0">${e.title}</div></div>
-    <div style="background:var(--bg);border-radius:10px;padding:12px 14px;margin-bottom:14px">
-      <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px"><span style="color:var(--text2)">날짜</span><span>${e.work_date}${e.end_date&&e.end_date!==e.work_date?' ~ '+e.end_date:''}</span></div>
-      <div style="display:flex;justify-content:space-between;font-size:13px${e.notes?';margin-bottom:6px':''}"><span style="color:var(--text2)">참여 팀원</span><span>${names}</span></div>
-      ${e.notes?`<div style="display:flex;justify-content:space-between;font-size:13px"><span style="color:var(--text2)">메모</span><span>${e.notes}</span></div>`:''}
+  const{data:ems}=await db.from('cal_event_members').select('member_id').eq('event_id',id)
+  const selMems=(ems||[]).map(em=>em.member_id)
+  editId=id
+  evtMems=[...selMems]
+  const cHtml=ECOLS.map(c=>`<div onclick="pickEvtCol('${c}')" data-c="${c}" style="width:28px;height:28px;border-radius:50%;background:${c};cursor:pointer;border:${e.color===c?'3px solid #333':'3px solid transparent'};box-sizing:border-box"></div>`).join('')
+  const mHtml=members.map(m=>{
+    const sel=selMems.includes(m.id)
+    return `<div id="em-${m.id}" onclick="togEvtM('${m.id}')" style="padding:5px 12px;border-radius:20px;font-size:12px;font-weight:500;cursor:pointer;border:.5px solid ${sel?'var(--navy)':'var(--border)'};background:${sel?'var(--navy)':'var(--white)'};color:${sel?'#fff':'var(--text2)'}">${m.name}</div>`
+  }).join('')
+  openSheet(`<div class="st">일정 수정</div>
+    <div class="fg"><label class="fl">일정명 *</label><input class="fi" id="ev-title" value="${e.title}"></div>
+    <div class="fr">
+      <div class="fg"><label class="fl">시작일</label><input class="fi" id="ev-s" type="date" value="${e.work_date}"></div>
+      <div class="fg"><label class="fl">종료일</label><input class="fi" id="ev-e" type="date" value="${e.end_date||e.work_date}"></div>
     </div>
-    ${me.isAdmin?`<button class="btn bg-r" onclick="delEvt('${e.id}')">일정 삭제</button>`:''}`)
+    <div class="fg"><label class="fl">색상</label><div id="ev-cols" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">${cHtml}</div><input type="hidden" id="ev-col" value="${e.color||ECOLS[0]}"></div>
+    <div class="fg"><label class="fl">참여 팀원</label><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">${mHtml}</div></div>
+    <div class="fg"><label class="fl">메모</label><textarea class="fi" id="ev-notes" rows="2">${e.notes||''}</textarea></div>
+    <button class="btn bp" onclick="saveEvt()">수정 완료</button>
+    <button class="btn bg-r" onclick="confirmDelEvt('${id}')">일정 삭제</button>`)
 }
 
-async function delEvt(id){
-  if(!confirm('삭제할까요?'))return
+async function confirmDelEvt(id){
+  if(!confirm('이 일정을 삭제할까요?'))return
   await db.from('cal_events').delete().eq('id',id)
   toast('삭제됐어요');closeSheet();rSchedule()
 }
