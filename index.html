@@ -751,7 +751,7 @@ function showMemberForm(m=null){
   editId=m?.id||null
   openSheet(`<div class="st">${m?'팀원 수정':'팀원 추가'}</div>
     <div class="fg"><label class="fl">이름 *</label><input class="fi" id="f-mn" placeholder="예) 김철수" value="${m?.name||''}"></div>
-    <div class="fg"><label class="fl">직종</label><select class="fi" id="f-mr" style="background:#fff">${['내선전공','전기기사','현장소장','관리자'].map(r=>`<option ${(m?.role||'내선전공')===r?'selected':''}>${r}</option>`).join('')}</select></div>
+    <div class="fg"><label class="fl">직급</label><select class="fi" id="f-mr" style="background:#fff">${['대표','팀장','대리','주임'].map(r=>`<option ${(m?.role||'주임')===r?'selected':''}>${r}</option>`).join('')}</select></div>
     <div class="fg"><label class="fl">연락처</label><input class="fi" id="f-mp" type="tel" placeholder="010-0000-0000" value="${m?.phone||''}"></div>
     ${m?`<div class="fg"><label class="fl">비밀번호 초기화</label><button onclick="resetMemberPw('${m.id}','${m.name}')" class="bs" style="width:100%;text-align:center;color:var(--red)">🔑 비밀번호 초기화 (다음 로그인 시 재설정)</button></div>`:''}
     <button class="btn bp" onclick="saveMem()">${m?'저장':'추가'}</button>
