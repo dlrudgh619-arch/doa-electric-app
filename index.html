@@ -606,41 +606,23 @@ async function rSchedule(){
     </div>
     <div style="display:grid;grid-template-columns:repeat(7,1fr)">`
 
-  for(let i=0;i<fd;i++) cal+=`<div style="min-height:60px;background:#F8FAFC;border-right:.5px solid var(--border);border-bottom:.5px solid var(--border)"></div>`
+  for(let i=0;i<fd;i++) cal+=`<div style="height:76px;background:#F8FAFC;border-right:.5px solid var(--border);border-bottom:.5px solid var(--border)"></div>`
 
   for(let i=0;i<dim;i++){
     const day=i+1,dstr=`${scY}-${pad(scMo+1)}-${pad(day)}`
     const isT=dstr===td,dow=new Date(scY,scMo,day).getDay()
     const last=(i+fd+1)%7===0,dayEvts=byDate[dstr]||[]
-    cal+=`<div style="min-height:60px;padding:3px;border-right:${last?'none':'.5px solid var(--border)'};border-bottom:.5px solid var(--border);background:${isT?'#EEF4FF':'#fff'};cursor:pointer;vertical-align:top" onclick="openEvtAdd('${dstr}')">
+    cal+=`<div style="height:76px;overflow:hidden;padding:2px;border-right:${last?'none':'.5px solid var(--border)'};border-bottom:.5px solid var(--border);background:${isT?'#EEF4FF':'#fff'};cursor:pointer" onclick="openEvtAdd('${dstr}')">
       <div style="width:20px;height:20px;border-radius:50%;background:${isT?'var(--blue)':'transparent'};color:${isT?'#fff':dow===0?'#EF4444':dow===6?'#3B82F6':'var(--text)'};display:flex;align-items:center;justify-content:center;margin:0 auto 2px;font-size:11px;font-weight:${isT?700:400}">${day}</div>`
-    dayEvts.slice(0,2).forEach(e=>{
-      cal+=`<div onclick="event.stopPropagation();openEvtDetail('${e.id}')" style="background:${e.color||'#1A3A5C'};color:#fff;border-radius:3px;padding:1px 4px;font-size:9px;margin-bottom:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer">${e.title}</div>`
+    dayEvts.slice(0,3).forEach(e=>{
+      cal+=`<div onclick="event.stopPropagation();openEvtDetail('${e.id}')" style="background:${e.color||'#1A3A5C'};color:#fff;border-radius:2px;padding:1px 3px;font-size:9px;margin-bottom:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;line-height:1.4">${e.title}</div>`
     })
-    if(dayEvts.length>2) cal+=`<div style="font-size:9px;color:var(--text2);text-align:center">+${dayEvts.length-2}개</div>`
+    if(dayEvts.length>3) cal+=`<div style="font-size:8px;color:var(--text2);padding-left:2px">+${dayEvts.length-3}개</div>`
     cal+=`</div>`
   }
   cal+=`</div></div>`
 
-  let list=`<div class="sec-hdr"><div class="sec-t">이번 달 일정 목록</div></div>`
-  if(events.length){
-    events.forEach(e=>{
-      const names=emList.filter(em=>em.event_id===e.id).map(em=>em.member?.name).filter(Boolean)
-      list+=`<div class="li" onclick="openEvtDetail('${e.id}')" style="border-left:3px solid ${e.color||'#1A3A5C'}">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start">
-          <div style="flex:1">
-            <div class="lt">${e.title}</div>
-            <div class="ls">${e.work_date}${e.end_date&&e.end_date!==e.work_date?' ~ '+e.end_date:''}</div>
-            ${names.length?`<div style="display:flex;gap:4px;margin-top:5px;flex-wrap:wrap">${names.map(n=>`<span style="background:var(--bg);border:.5px solid var(--border);border-radius:20px;padding:2px 8px;font-size:11px">${n}</span>`).join('')}</div>`:''}
-          </div>
-          <div style="width:10px;height:10px;border-radius:50%;background:${e.color||'#1A3A5C'};margin-top:4px;flex-shrink:0"></div>
-        </div>
-      </div>`
-    })
-  }else{
-    list+=`<div class="empty"><div class="ei">📅</div><div style="font-size:14px">이번 달 일정이 없어요</div><div style="font-size:12px;margin-top:4px;opacity:.7">날짜를 탭해서 추가하세요</div></div>`
-  }
-  document.getElementById('main').innerHTML=cal+list
+  document.getElementById('main').innerHTML=cal
 }
 
 function openEvtAdd(date){
