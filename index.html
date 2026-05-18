@@ -522,18 +522,11 @@ function renderMats(siteId,siteName,mats){
 
 function addMatForm(siteId,siteName){
   _matSiteId=siteId; _matSiteName=siteName; _matSelected=null
-  const listHtml=MATS_LIST.map(m=>
-    `<div onclick="selectMatItem('${m.n.replace(/'/g,'').replace(/\(/g,'(').replace(/\)/g,')')}','${m.u}')"
-      style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:.5px solid var(--border);cursor:pointer;font-size:13px">
-      <span>${m.n}</span>
-      <span style="font-size:11px;color:var(--text2);flex-shrink:0;margin-left:8px">${m.u}</span>
-    </div>`
-  ).join('')
   openSheet(`<div class="st">자재 선택 — ${siteName}</div>
     <div class="fg">
       <input class="fi" id="mat-search" oninput="filterMats()" placeholder="🔍 자재 검색..." autocomplete="off">
     </div>
-    <div id="mat-pick" style="border:.5px solid var(--border);border-radius:8px;max-height:240px;overflow-y:auto;margin-bottom:10px">${listHtml}</div>
+    <div id="mat-pick" style="border:.5px solid var(--border);border-radius:8px;max-height:240px;overflow-y:auto;margin-bottom:10px"></div>
     <div id="mat-sel-box" style="display:none;background:#E8F0F8;border-radius:8px;padding:10px 14px;margin-bottom:10px">
       <div style="font-size:12px;color:var(--text2);margin-bottom:2px">선택된 자재</div>
       <div style="font-size:14px;font-weight:600;color:var(--navy)" id="mat-sel-name"></div>
@@ -543,45 +536,69 @@ function addMatForm(siteId,siteName){
       <div class="fg"><label class="fl">단위</label><input class="fi" id="mat-unit-show" readonly style="background:var(--bg);color:var(--text2)"></div>
     </div>
     <button class="btn bp" onclick="saveMat()">추가 (동일 자재 자동 누적)</button>`)
+  renderMatPick(MATS_LIST)
+  // 이벤트 위임 방식으로 클릭 처리
+  document.getElementById('mat-pick').addEventListener('click',function(e){
+    const row=e.target.closest('[data-name]')
+    if(row) selectMatFromEl(row)
+  })
+}
+
+function renderMatPick(list){
+  const pick=document.getElementById('mat-pick')
+  if(!pick)return
+  if(!list.length){pick.innerHTML='<div style="text-align:center;padding:20px;color:var(--text2);font-size:13px">검색 결과 없음</div>';return}
+  pick.innerHTML=list.map(m=>`
+    <div data-name="${m.n}" data-unit="${m.u}"
+      style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:.5px solid var(--border);cursor:pointer;font-size:13px;background:${_matSelected&&_matSelected.n===m.n?'#DBEAFE':'transparent'}">
+      <span>${m.n}</span>
+      <span style="font-size:11px;color:var(--text2);flex-shrink:0;margin-left:8px">${m.u}</span>
+    </div>`).join('')
 }
 
 function filterMats(){
-  const q=document.getElementById('mat-search').value.toLowerCase()
+  const q=(document.getElementById('mat-search')?.value||'').toLowerCase()
   const filtered=q?MATS_LIST.filter(m=>m.n.toLowerCase().includes(q)):MATS_LIST
-  document.getElementById('mat-pick').innerHTML=filtered.map(m=>
-    `<div onclick="selectMatItem('${m.n.replace(/'/g,'')}','${m.u}')"
-      style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:.5px solid var(--border);cursor:pointer;font-size:13px;background:${_matSelected?.n===m.n?'#DBEAFE':'transparent'}">
-      <span>${m.n}</span>
-      <span style="font-size:11px;color:var(--text2);flex-shrink:0;margin-left:8px">${m.u}</span>
-    </div>`
-  ).join('')||'<div style="text-align:center;padding:20px;color:var(--text2);font-size:13px">검색 결과 없음</div>'
+  renderMatPick(filtered)
 }
 
-function selectMatItem(name,unit){
+function selectMatFromEl(el){
+  const name=el.dataset.name, unit=el.dataset.unit
   _matSelected={n:name,u:unit}
-  document.getElementById('mat-sel-name').textContent=name
-  document.getElementById('mat-sel-box').style.display='block'
-  document.getElementById('mat-unit-show').value=unit
-  // 목록에서 선택 강조
-  document.querySelectorAll('#mat-pick div').forEach(d=>{
-    d.style.background=d.querySelector('span')?.textContent===name?'#DBEAFE':'transparent'
+  // UI 업데이트
+  const nameEl=document.getElementById('mat-sel-name')
+  const boxEl=document.getElementById('mat-sel-box')
+  const unitEl=document.getElementById('mat-unit-show')
+  if(nameEl) nameEl.textContent=name
+  if(boxEl) boxEl.style.display='block'
+  if(unitEl) unitEl.value=unit
+  // 선택 강조
+  document.querySelectorAll('#mat-pick [data-name]').forEach(d=>{
+    d.style.background=d.dataset.name===name?'#DBEAFE':'transparent'
   })
 }
 
 async function saveMat(){
-  if(!_matSelected){toast('자재를 선택하세요',true);return}
-  const qty=parseFloat(document.getElementById('mat-qty').value)||1
+  if(!_matSelected){toast('자재를 먼저 선택하세요',true);return}
+  const qtyEl=document.getElementById('mat-qty')
+  const qty=parseFloat(qtyEl?.value)||0
   if(qty<=0){toast('수량을 입력하세요',true);return}
-  // 동일 자재 누적 체크
-  const{data:exist}=await db.from('site_materials').select('*').eq('site_id',_matSiteId).eq('name',_matSelected.n).single().catch(()=>({data:null}))
-  if(exist){
-    await db.from('site_materials').update({quantity:(parseFloat(exist.quantity)||0)+qty}).eq('id',exist.id)
-    toast(`${_matSelected.n} ${exist.quantity}→${(parseFloat(exist.quantity)||0)+qty}${_matSelected.u} 누적됐어요`)
-  }else{
-    await db.from('site_materials').insert({site_id:_matSiteId,name:_matSelected.n,quantity:qty,unit:_matSelected.u,is_checked:false})
-    toast(`${_matSelected.n} ${qty}${_matSelected.u} 추가됐어요`)
+  try{
+    // 동일 자재 누적 확인
+    const{data:rows,error}=await db.from('site_materials').select('*').eq('site_id',_matSiteId).eq('name',_matSelected.n)
+    const exist=rows&&rows.length>0?rows[0]:null
+    if(exist){
+      const newQty=(parseFloat(exist.quantity)||0)+qty
+      await db.from('site_materials').update({quantity:newQty}).eq('id',exist.id)
+      toast(`${_matSelected.n} → ${newQty}${_matSelected.u} 누적됐어요`)
+    }else{
+      await db.from('site_materials').insert({site_id:_matSiteId,name:_matSelected.n,quantity:qty,unit:_matSelected.u,is_checked:false})
+      toast(`${_matSelected.n} ${qty}${_matSelected.u} 추가됐어요`)
+    }
+    openMaterials(_matSiteId,_matSiteName)
+  }catch(err){
+    toast('오류가 발생했어요: '+err.message,true)
   }
-  openMaterials(_matSiteId,_matSiteName)
 }
 
 async function togMat(id,checked,siteId,siteName){
@@ -698,9 +715,9 @@ async function delSite(id){
 let scY=new Date().getFullYear(),scMo=new Date().getMonth()
 const ECOLS=['#1A3A5C','#2E6DA4','#27AE60','#E67E22','#E74C3C','#8E44AD']
 const MATS_LIST=[
-  {n:'HIV 2.5SQ',u:'M'},{n:'CV 2.5SQ 3C',u:'M'},{n:'UTP 5E',u:'M'},
-  {n:'SF후렉시블 16mm',u:'M'},{n:'SF후렉시블 22mm',u:'M'},
-  {n:'난연 CD관 16mm',u:'M'},{n:'난연 CD관 22mm',u:'M'},
+  {n:'HIV 2.5SQ',u:'EA'},{n:'CV 2.5SQ 3C',u:'EA'},{n:'UTP 5E',u:'EA'},
+  {n:'SF후렉시블 16mm',u:'EA'},{n:'SF후렉시블 22mm',u:'EA'},
+  {n:'난연 CD관 16mm',u:'EA'},{n:'난연 CD관 22mm',u:'EA'},
   {n:'16원터치커넥터',u:'EA'},{n:'22원터치커넥터',u:'EA'},
   {n:'전산볼트',u:'EA'},{n:'양날브라캣',u:'EA'},
   {n:'레이스웨이 70x40 바디',u:'EA'},{n:'레이스웨이 70 기억자연결',u:'EA'},
