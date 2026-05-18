@@ -6,6 +6,10 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="도아전기">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#1A3A5C">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icon-192.png">
 <title>도아전기</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
@@ -162,6 +166,9 @@ body{font-family:-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script>
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}))
+}
 const SURL='https://rqxzazdpduosdjfikaon.supabase.co'
 const SKEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJxeHphemRwZHVvc2RqZmlrYW9uIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5OTU2MzEsImV4cCI6MjA5NDU3MTYzMX0.qQsaX18gZv9rv2LwXT6hp22fRrG6-Gu4na-HDGoAssk'
 const ADMIN_PIN='1234'
@@ -753,9 +760,15 @@ function showMemberForm(m=null){
     <div class="fg"><label class="fl">이름 *</label><input class="fi" id="f-mn" placeholder="예) 김철수" value="${m?.name||''}"></div>
     <div class="fg"><label class="fl">직급</label><select class="fi" id="f-mr" style="background:#fff">${['대표','팀장','대리','주임'].map(r=>`<option ${(m?.role||'주임')===r?'selected':''}>${r}</option>`).join('')}</select></div>
     <div class="fg"><label class="fl">연락처</label><input class="fi" id="f-mp" type="tel" placeholder="010-0000-0000" value="${m?.phone||''}"></div>
-    ${m?`<div class="fg"><label class="fl">비밀번호 초기화</label><button onclick="resetMemberPw('${m.id}','${m.name}')" class="bs" style="width:100%;text-align:center;color:var(--red)">🔑 비밀번호 초기화 (다음 로그인 시 재설정)</button></div>`:''}
+    <div class="fg">
+      <label class="fl">${m?'비밀번호 변경 (비워두면 유지)':'초기 비밀번호 설정'}</label>
+      <input class="fi" type="password" id="f-mpw" placeholder="${m?'새 비밀번호 (선택)':'비밀번호 입력'}">
+    </div>
+    ${m&&m.password!==undefined?`<div style="background:#FEF3C7;border-radius:8px;padding:8px 12px;font-size:12px;color:#92400E;margin-bottom:12px">🔑 현재 비밀번호: ${m.password?'설정됨':'미설정'}</div>`:''}
     <button class="btn bp" onclick="saveMem()">${m?'저장':'추가'}</button>
-    ${m?`<button class="btn bg-r" onclick="delMem('${m.id}')">팀원 삭제</button>`:''}
+    ${m?`
+      <button class="btn" style="background:#F1F5F9;color:var(--red);margin-top:8px" onclick="resetMemberPw('${m.id}','${m.name}')">🔑 비밀번호 초기화</button>
+      <button class="btn bg-r" onclick="delMem('${m.id}')">팀원 삭제</button>`:''}
   `)
 }
 async function resetMemberPw(id,name){
@@ -764,11 +777,17 @@ async function resetMemberPw(id,name){
   toast(`${name}님 비밀번호 초기화 완료`)
   closeSheet()
 }
-async function editMem(id){showMemberForm(members.find(m=>m.id===id))}
+async function editMem(id){
+  const{data}=await db.from('members').select('*').eq('id',id).single()
+  if(data) showMemberForm(data)
+}
 async function saveMem(){
   const name=document.getElementById('f-mn').value.trim()
   if(!name){toast('이름을 입력하세요',true);return}
+  const pw=document.getElementById('f-mpw')?.value||''
   const data={name,role:v('f-mr'),phone:v('f-mp')}
+  if(pw) data.password=pw
+  if(!editId) data.password=pw||''
   if(editId){await db.from('members').update(data).eq('id',editId);toast('수정됐어요')}
   else{await db.from('members').insert(data);toast('추가됐어요')}
   closeSheet();rTeam()
@@ -778,5 +797,28 @@ async function delMem(id){
   await db.from('members').delete().eq('id',id);toast('삭제했어요');closeSheet();rTeam()
 }
 </script>
-</body>
+</body>{
+  "name": "도아전기",
+  "short_name": "도아전기",
+  "description": "도아전기 팀 관리 앱",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1A3A5C",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
 </html>
