@@ -354,7 +354,14 @@ function compressImg(file){
   })
 }
 
-function viewPhoto(src,name){openSheet(`<div class="st">${name||'사진'}</div><img src="${src}" style="width:100%;border-radius:10px">`)}
+function viewPhoto(src,name){
+  const fn=name||'도아전기_현장사진.jpg'
+  openSheet(`
+    <div class="st">${name||'사진'}</div>
+    <img src="${src}" style="width:100%;border-radius:10px;margin-bottom:14px">
+    <a href="${src}" download="${fn}" style="display:block;width:100%;padding:13px;background:var(--navy);color:#fff;border-radius:10px;text-align:center;font-size:15px;font-weight:600;text-decoration:none">⬇ 사진 다운로드</a>
+  `)
+}
 
 async function delFile(id,siteId,siteName){
   if(!confirm('이 사진을 삭제할까요?'))return
