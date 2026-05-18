@@ -171,7 +171,7 @@ if('serviceWorker' in navigator){
 }
 const SURL='https://rqxzazdpduosdjfikaon.supabase.co'
 const SKEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJxeHphemRwZHVvc2RqZmlrYW9uIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5OTU2MzEsImV4cCI6MjA5NDU3MTYzMX0.qQsaX18gZv9rv2LwXT6hp22fRrG6-Gu4na-HDGoAssk'
-const ADMIN_PIN='1234'
+const ADMIN_PIN='153528'
 const COLORS=['#DBEAFE:#1D4ED8','#D1FAE5:#065F46','#FEE2E2:#991B1B','#EDE9FE:#5B21B6','#FEF9C3:#854D0E','#E0F2FE:#0369A1','#FCE7F3:#9D174D']
 const db=supabase.createClient(SURL,SKEY)
 
@@ -278,7 +278,7 @@ function loginAs(id,name){
   showApp();go('home')
 }
 function adminLogin(){
-  const pin=prompt('관리자 PIN을 입력하세요\n(기본값: 1234)')
+  const pin=prompt('관리자 PIN을 입력하세요')
   if(pin===null)return
   if(pin===ADMIN_PIN){
     me={id:'admin',name:'관리자',isAdmin:true}
