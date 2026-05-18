@@ -296,7 +296,6 @@ async function rSites(){
         <div class="ls">${s.client||'발주처 미입력'}${s.address?' · '+s.address:''}</div>
         <div class="lm"><span class="badge ${bc(s.status)}">${s.status}</span>${s.start_date?`<span class="ls">${s.start_date}${s.end_date?' ~ '+s.end_date:''}</span>`:''}</div></div>
         <div class="la">
-          ${s.phone?`<button class="bs" onclick="location.href='tel:${s.phone}'">📞 전화</button>`:''}
           <button class="bs" onclick="openSiteFiles('${s.id}','${s.name.replace(/'/g,'')}')">📷 현장 사진</button>
           ${me.isAdmin?`<button class="bs" onclick="editSite('${s.id}')">✏️ 수정</button><button class="bs" style="color:var(--red)" onclick="delSite('${s.id}')">삭제</button>`:''}
         </div>
@@ -391,43 +390,84 @@ async function delSite(id){
   await db.from('sites').delete().eq('id',id);toast('삭제했어요');closeSheet();rSites()
 }
 
-// ══════════════ 일정 ══════════════
+// ══════════════ 일정 (월간) ══════════════
+let scY=new Date().getFullYear(),scMo=new Date().getMonth()
+
 async function rSchedule(){
   document.getElementById('hdr-t').textContent='일정 관리'
-  const[sr,mr]=await Promise.all([db.from('sites').select('id,name').eq('status','진행중'),db.from('members').select('*')])
+  const[sr,mr]=await Promise.all([
+    db.from('sites').select('id,name').eq('status','진행중'),
+    db.from('members').select('*')
+  ])
   sites=sr.data||[];members=mr.data||[]
-  const dates=getWeek(wOff),ds=dates.map(d=>fd(d))
-  const{data:sc}=await db.from('schedules').select('*,site:sites(name),member:members(name)').in('work_date',ds)
+  const from=`${scY}-${pad(scMo+1)}-01`
+  const to=`${scY}-${pad(scMo+1)}-${new Date(scY,scMo+1,0).getDate()}`
+  const{data:sc}=await db.from('schedules').select('*,site:sites(name),member:members(name)').gte('work_date',from).lte('work_date',to)
   schedules=sc||[]
-  const days=['일','월','화','수','목','금','토'],td=today()
-  document.getElementById('hdr-s').textContent=`${dates[0].getMonth()+1}월 ${dates[0].getDate()}일 ~ ${dates[6].getDate()}일`
+  const days=['일','월','화','수','목','금','토']
+  const dim=new Date(scY,scMo+1,0).getDate()
+  const firstDay=new Date(scY,scMo,1).getDay()
+  const td=today()
+  document.getElementById('hdr-s').textContent=`${scY}년 ${scMo+1}월`
+
+  // 날짜별 배정 요약
+  const byDate={}
+  schedules.forEach(s=>{if(!byDate[s.work_date])byDate[s.work_date]=[];byDate[s.work_date].push(s)})
+
   document.getElementById('main').innerHTML=`
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-      <button class="bs" onclick="wOff--;rSchedule()">◀ 이전</button>
-      <div style="font-size:13px;font-weight:600;color:var(--navy)">${wOff===0?'이번 주':wOff>0?`+${wOff}주`:`${wOff}주`}</div>
-      <button class="bs" onclick="wOff++;rSchedule()">다음 ▶</button>
+      <button class="bs" onclick="scMo=scMo>0?scMo-1:11;if(scMo===11)scY--;rSchedule()">◀</button>
+      <div style="font-size:15px;font-weight:600;color:var(--navy)">${scY}년 ${scMo+1}월</div>
+      <button class="bs" onclick="scMo=scMo<11?scMo+1:0;if(scMo===0)scY++;rSchedule()">▶</button>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:14px">
-      ${dates.map(d=>{
-        const dstr=fd(d),isT=dstr===td,dsc=schedules.filter(s=>s.work_date===dstr)
-        return `<div><div style="text-align:center;font-size:10px;font-weight:600;color:${isT?'var(--blue)':'var(--text2)'};padding-bottom:4px">${days[d.getDay()]}<br><span style="font-size:12px${isT?';color:var(--blue)':''}">${d.getDate()}</span></div>
-          <div style="background:var(--white);border:.5px solid ${isT?'var(--blue)':'var(--border)'};border-radius:8px;padding:4px 2px;min-height:56px;text-align:center;cursor:${me.isAdmin?'pointer':'default'}"${me.isAdmin?` onclick="openScAdd('${dstr}')"`:''}>${dsc.slice(0,3).map(s=>`<div style="background:var(--navy);color:#fff;border-radius:3px;padding:2px 3px;margin-bottom:2px;font-size:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.member?.name||'?'}</div>`).join('')}${dsc.length>3?`<div style="font-size:8px;color:var(--text2)">+${dsc.length-3}</div>`:''}${!dsc.length&&me.isAdmin?`<div style="font-size:16px;color:var(--border);margin-top:8px">+</div>`:''}</div></div>`
-      }).join('')}
+
+    <div style="background:var(--white);border:.5px solid var(--border);border-radius:12px;padding:10px;margin-bottom:14px">
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:6px">
+        ${days.map((d,i)=>`<div style="text-align:center;font-size:10px;font-weight:600;color:${i===0?'#EF4444':i===6?'#2E6DA4':'var(--text2)'};padding-bottom:4px">${d}</div>`).join('')}
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px">
+        ${Array(firstDay).fill('<div></div>').join('')}
+        ${Array.from({length:dim},(_,i)=>{
+          const day=i+1
+          const dstr=`${scY}-${pad(scMo+1)}-${pad(day)}`
+          const isT=dstr===td
+          const isSun=new Date(scY,scMo,day).getDay()===0
+          const isSat=new Date(scY,scMo,day).getDay()===6
+          const daySchs=byDate[dstr]||[]
+          return `<div style="min-height:52px;border-radius:6px;padding:3px;background:${isT?'#EEF4FF':'transparent'};border:${isT?'.5px solid var(--blue)':'.5px solid transparent'};cursor:${me.isAdmin?'pointer':'default'}"${me.isAdmin?` onclick="openScAdd('${dstr}')"`:''}> 
+            <div style="font-size:11px;font-weight:${isT?700:400};color:${isT?'var(--blue)':isSun?'#EF4444':isSat?'#2E6DA4':'var(--text)'};text-align:center;margin-bottom:2px">${day}</div>
+            ${daySchs.slice(0,2).map(s=>`<div style="background:var(--navy);color:#fff;border-radius:2px;padding:1px 3px;font-size:8px;margin-bottom:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.member?.name||'?'}</div>`).join('')}
+            ${daySchs.length>2?`<div style="font-size:8px;color:var(--text2);text-align:center">+${daySchs.length-2}</div>`:''}
+            ${!daySchs.length&&me.isAdmin?`<div style="text-align:center;font-size:14px;color:var(--border);line-height:1;margin-top:2px">+</div>`:''}
+          </div>`
+        }).join('')}
+      </div>
     </div>
-    <div class="sec-hdr"><div class="sec-t">팀원별 현황</div></div>
-    ${members.map((m,i)=>{
+
+    <div class="sec-hdr"><div class="sec-t">이번 달 팀원 배정 현황</div></div>
+    ${members.length?members.map((m,i)=>{
       const my=schedules.filter(s=>s.member_id===m.id)
+      const siteNames=[...new Set(my.map(s=>s.site?.name).filter(Boolean))]
       const[bg,fg]=COLORS[i%COLORS.length].split(':')
-      return `<div class="li" style="display:flex;align-items:center;gap:12px"><div class="av" style="background:${bg};color:${fg}">${m.name[0]}</div><div style="flex:1"><div style="font-size:14px;font-weight:600">${m.name}</div><div style="font-size:12px;color:var(--text2)">${my.length?my.map(s=>s.site?.name).filter((v,i,a)=>a.indexOf(v)===i).join(', '):'이번 주 배정 없음'}</div></div></div>`
-    }).join('')||'<div class="empty"><div style="font-size:14px">팀원을 먼저 추가하세요</div></div>'}
+      return `<div class="li" style="display:flex;align-items:center;gap:12px">
+        <div class="av" style="background:${bg};color:${fg}">${m.name[0]}</div>
+        <div style="flex:1">
+          <div style="font-size:14px;font-weight:600">${m.name}</div>
+          <div style="font-size:12px;color:var(--text2)">${my.length?`${my.length}일 배정 · ${siteNames.join(', ')}`:'이번 달 배정 없음'}</div>
+        </div>
+        <div style="font-size:13px;font-weight:600;color:var(--navy)">${my.length}일</div>
+      </div>`
+    }).join(''):`<div class="empty"><div style="font-size:14px">팀원을 먼저 추가하세요</div></div>`}
   `
 }
+
 function openScAdd(date){
   if(!sites.length){toast('진행중인 현장이 없어요',true);return}
   const ex=schedules.filter(s=>s.work_date===date)
+  const[y,mo,d]=date.split('-')
   openSheet(`
-    <div class="st">${date} 배정</div>
-    ${ex.length?`<div style="background:var(--bg);border-radius:8px;padding:10px 12px;margin-bottom:14px">${ex.map(s=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:.5px solid var(--border)"><span style="font-size:13px"><b>${s.member?.name}</b> → ${s.site?.name}</span><button onclick="delSc('${s.id}')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:12px;font-weight:500">삭제</button></div>`).join('')}</div>`:'' }
+    <div class="st">${mo}월 ${parseInt(d)}일 배정</div>
+    ${ex.length?`<div style="background:var(--bg);border-radius:8px;padding:10px 12px;margin-bottom:14px">${ex.map(s=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:.5px solid var(--border)"><span style="font-size:13px"><b>${s.member?.name}</b> → ${s.site?.name}</span><button onclick="delSc('${s.id}')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:12px;font-weight:500">삭제</button></div>`).join('')}</div>`:'' }
     <div class="fg"><label class="fl">팀원</label><select class="fi" id="f-mem" style="background:#fff">${members.map(m=>`<option value="${m.id}">${m.name}</option>`).join('')}</select></div>
     <div class="fg"><label class="fl">현장</label><select class="fi" id="f-site" style="background:#fff">${sites.map(s=>`<option value="${s.id}">${s.name}</option>`).join('')}</select></div>
     <input type="hidden" id="f-date" value="${date}">
