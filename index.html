@@ -372,6 +372,7 @@ async function rSites(){
         <div class="lm"><span class="badge ${bc(s.status)}">${s.status}</span>${s.start_date?`<span class="ls">${s.start_date}${s.end_date?' ~ '+s.end_date:''}</span>`:''}</div></div>
         <div class="la">
           <button class="bs" onclick="openSiteFiles('${s.id}','${s.name.replace(/'/g,'')}')">📷 현장 사진</button>
+          <button class="bs" onclick="openSiteMaterials('${s.id}','${s.name.replace(/'/g,'')}')">📦 사용자재</button>
           ${me.isAdmin?`<button class="bs" onclick="editSite('${s.id}')">✏️ 수정</button><button class="bs" style="color:var(--red)" onclick="delSite('${s.id}')">삭제</button>`:''}
         </div>
       </div>`).join(''):`<div class="empty"><div class="ei">📍</div><div style="font-size:14px">현장이 없어요</div></div>`}
@@ -384,22 +385,68 @@ async function openSiteFiles(siteId,siteName){
   openSheet(`<div class="st">${siteName} — 현장 사진</div><div class="loading"><div class="spin"></div></div>`)
   const{data}=await db.from('site_files').select('*').eq('site_id',siteId).order('created_at',{ascending:false})
   const files=data||[]
+  renderPhotoSheet(siteId,siteName,files,false,[])
+}
+
+function renderPhotoSheet(siteId,siteName,files,selectMode,selected){
   document.getElementById('sc').innerHTML=`
-    <div class="st">${siteName} — 현장 사진</div>
-    <div class="photo-grid">
-      <div class="photo-add" onclick="document.getElementById('fi-${siteId}').click()">
-        <span>📷</span><span>사진 추가</span>
-      </div>
+    <div class="st">${siteName} — 현장 사진 (${files.length}장)</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <button class="bs" onclick="document.getElementById('fi-${siteId}').click()">📷 추가</button>
       <input type="file" id="fi-${siteId}" accept="image/*" multiple style="display:none" onchange="uploadPhotos('${siteId}','${siteName}',this)">
-      ${files.map(f=>`
-        <div style="position:relative">
-          <img class="photo-thumb" src="${f.file_data}" onclick="viewPhoto('${f.file_data}','${f.file_name||''}')">
-          ${me.isAdmin?`<button onclick="delFile('${f.id}','${siteId}','${siteName}')" style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,.6);border:none;color:#fff;border-radius:50%;width:22px;height:22px;font-size:12px;cursor:pointer">×</button>`:''}
+      ${files.length?`<button class="bs" style="color:var(--blue)" onclick="toggleSelectMode_${siteId}()">${selectMode?'취소':'선택 다운로드'}</button>`:''}
+    </div>
+    <div class="photo-grid" id="photo-grid-${siteId}">
+      ${files.map((f,i)=>`
+        <div style="position:relative;cursor:pointer" onclick="${selectMode?`toggleSelect_${siteId}(${i})`:`viewPhoto('${f.file_data}','${f.file_name||''}')`}">
+          <img class="photo-thumb" src="${f.file_data}" style="opacity:${selectMode&&!selected.includes(i)?0.5:1}">
+          ${selectMode?`<div style="position:absolute;top:5px;left:5px;width:22px;height:22px;border-radius:50%;background:${selected.includes(i)?'var(--blue)':'rgba(255,255,255,.8)'};border:2px solid ${selected.includes(i)?'var(--blue)':'#ccc'};display:flex;align-items:center;justify-content:center;font-size:13px">${selected.includes(i)?'✓':''}</div>`:''}
+          ${!selectMode&&me.isAdmin?`<button onclick="event.stopPropagation();delFile('${f.id}','${siteId}','${siteName}')" style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,.6);border:none;color:#fff;border-radius:50%;width:22px;height:22px;font-size:12px;cursor:pointer">×</button>`:''}
         </div>`).join('')}
     </div>
-    ${!files.length?'<div style="text-align:center;color:var(--text2);font-size:13px;padding:24px 0;margin-top:8px">아직 사진이 없어요<br><span style="font-size:11px;opacity:.7">📷 버튼으로 추가하세요</span></div>':''}
+    ${!files.length?'<div style="text-align:center;color:var(--text2);font-size:13px;padding:24px 0">아직 사진이 없어요</div>':''}
+    ${selectMode?`
+      <div style="position:sticky;bottom:0;background:#fff;padding:12px 0 4px;margin-top:12px;border-top:.5px solid var(--border)">
+        <div style="display:flex;gap:8px;margin-bottom:8px">
+          <button class="bs" style="flex:1;text-align:center" onclick="selectAll_${siteId}(${files.length})">전체 선택</button>
+          <button class="bs" style="flex:1;text-align:center;color:var(--red)" onclick="clearSelect_${siteId}()">선택 해제</button>
+        </div>
+        <button class="btn bp" id="dl-btn-${siteId}" onclick="downloadSelected_${siteId}()">
+          ⬇ <span id="dl-cnt-${siteId}">${selected.length}</span>장 다운로드
+        </button>
+      </div>`:''}
     <div id="up-prog" style="display:none;margin-top:14px"><div class="loading"><div class="spin"></div>업로드 중...</div></div>
   `
+
+  // 스크립트 동적 주입
+  const sel = [...selected]
+  const allFiles = files
+  window[`toggleSelectMode_${siteId}`] = () => renderPhotoSheet(siteId,siteName,allFiles,!selectMode,sel)
+  window[`toggleSelect_${siteId}`] = (i) => {
+    const idx = sel.indexOf(i)
+    if(idx>-1) sel.splice(idx,1); else sel.push(i)
+    renderPhotoSheet(siteId,siteName,allFiles,true,sel)
+  }
+  window[`selectAll_${siteId}`] = (len) => {
+    sel.length=0; for(let i=0;i<len;i++) sel.push(i)
+    renderPhotoSheet(siteId,siteName,allFiles,true,sel)
+  }
+  window[`clearSelect_${siteId}`] = () => {
+    sel.length=0; renderPhotoSheet(siteId,siteName,allFiles,true,sel)
+  }
+  window[`downloadSelected_${siteId}`] = async () => {
+    if(!sel.length){toast('사진을 선택하세요',true);return}
+    toast(`${sel.length}장 다운로드 시작...`)
+    for(let i=0;i<sel.length;i++){
+      const f=allFiles[sel[i]]
+      await new Promise(res=>setTimeout(res,300))
+      const a=document.createElement('a')
+      a.href=f.file_data
+      a.download=f.file_name||`도아전기_현장사진_${i+1}.jpg`
+      document.body.appendChild(a);a.click();document.body.removeChild(a)
+    }
+    toast(`✅ ${sel.length}장 다운로드 완료`)
+  }
 }
 
 async function uploadPhotos(siteId,siteName,input){
@@ -443,7 +490,76 @@ async function delFile(id,siteId,siteName){
   toast('삭제했어요');openSiteFiles(siteId,siteName)
 }
 
-function showSiteForm(s=null){
+// ── 현장 자재 관리
+async function openSiteMaterials(siteId,siteName){
+  openSheet(`<div class="st">${siteName} — 사용자재</div><div class="loading"><div class="spin"></div></div>`)
+  const{data}=await db.from('site_materials').select('*').eq('site_id',siteId).order('sort_order').order('created_at')
+  renderMaterials(siteId,siteName,data||[])
+}
+
+function renderMaterials(siteId,siteName,mats){
+  const checked=mats.filter(m=>m.is_checked).length
+  document.getElementById('sc').innerHTML=`
+    <div class="st">${siteName} — 사용자재</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div style="font-size:13px;color:var(--text2)">${checked}/${mats.length} 사용 완료</div>
+      ${me.isAdmin?`<button class="bs" onclick="addMaterialForm('${siteId}','${siteName}')">+ 자재 추가</button>`:''}
+    </div>
+    ${mats.length?`
+      <div style="background:var(--bg);border-radius:4px;height:6px;margin-bottom:14px;overflow:hidden">
+        <div style="height:100%;background:var(--blue);border-radius:4px;width:${mats.length?Math.round(checked/mats.length*100):0}%;transition:.3s"></div>
+      </div>
+      ${mats.map(m=>`
+        <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:.5px solid var(--border)">
+          <div onclick="toggleMaterial('${m.id}','${m.is_checked}','${siteId}','${siteName}')" style="width:24px;height:24px;border-radius:6px;border:2px solid ${m.is_checked?'var(--blue)':'var(--border)'};background:${m.is_checked?'var(--blue)':'transparent'};flex-shrink:0;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px">
+            ${m.is_checked?'✓':''}
+          </div>
+          <div style="flex:1;${m.is_checked?'text-decoration:line-through;opacity:.5':''}">
+            <div style="font-size:14px;font-weight:500">${m.name}</div>
+            ${m.quantity?`<div style="font-size:12px;color:var(--text2)">${m.quantity} ${m.unit||'EA'}${m.notes?' · '+m.notes:''}</div>`:''}
+          </div>
+          ${me.isAdmin?`<button onclick="delMaterial('${m.id}','${siteId}','${siteName}')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:18px;padding:4px">×</button>`:''}
+        </div>`).join('')}`
+    :`<div class="empty"><div class="ei">📦</div><div style="font-size:14px">등록된 자재가 없어요</div>${me.isAdmin?'<div style="font-size:12px;margin-top:4px;opacity:.7">+ 자재 추가 버튼으로 등록하세요</div>':''}</div>`}
+  `
+}
+
+function addMaterialForm(siteId,siteName){
+  openSheet(`
+    <div class="st">자재 추가 — ${siteName}</div>
+    <div class="fg"><label class="fl">자재명 *</label><input class="fi" id="mat-name" placeholder="예) HIV 전선 2.5SQ"></div>
+    <div class="fr">
+      <div class="fg"><label class="fl">수량</label><input class="fi" id="mat-qty" type="number" placeholder="0" min="0"></div>
+      <div class="fg"><label class="fl">단위</label><input class="fi" id="mat-unit" placeholder="EA, M, 묶음..."></div>
+    </div>
+    <div class="fg"><label class="fl">메모</label><input class="fi" id="mat-notes" placeholder="규격, 색상 등"></div>
+    <button class="btn bp" onclick="saveMaterial('${siteId}','${siteName}')">추가</button>
+  `)
+}
+
+async function saveMaterial(siteId,siteName){
+  const name=document.getElementById('mat-name').value.trim()
+  if(!name){toast('자재명을 입력하세요',true);return}
+  await db.from('site_materials').insert({
+    site_id:siteId, name,
+    quantity:parseFloat(document.getElementById('mat-qty').value)||0,
+    unit:v('mat-unit')||'EA',
+    notes:v('mat-notes')
+  })
+  toast('자재가 추가됐어요')
+  openSiteMaterials(siteId,siteName)
+}
+
+async function toggleMaterial(id,checked,siteId,siteName){
+  await db.from('site_materials').update({is_checked:checked!=='true'}).eq('id',id)
+  openSiteMaterials(siteId,siteName)
+}
+
+async function delMaterial(id,siteId,siteName){
+  if(!confirm('이 자재를 삭제할까요?'))return
+  await db.from('site_materials').delete().eq('id',id)
+  toast('삭제됐어요');openSiteMaterials(siteId,siteName)
+}
   editId=s?.id||null
   openSheet(`
     <div class="st">${s?'현장 수정':'현장 추가'}</div>
@@ -472,92 +588,166 @@ async function delSite(id){
   await db.from('sites').delete().eq('id',id);toast('삭제했어요');closeSheet();rSites()
 }
 
-// ══════════════ 일정 (월간) ══════════════
+// ══════════════ 일정 (네이버웍스 캘린더 스타일) ══════════════
 let scY=new Date().getFullYear(),scMo=new Date().getMonth()
+const EVT_COLORS=['#1A3A5C','#2E6DA4','#27AE60','#E67E22','#E74C3C','#8E44AD','#16A085','#D35400']
 
 async function rSchedule(){
   document.getElementById('hdr-t').textContent='일정 관리'
-  const[sr,mr]=await Promise.all([
-    db.from('sites').select('id,name').eq('status','진행중'),
-    db.from('members').select('*')
-  ])
-  sites=sr.data||[];members=mr.data||[]
+  const mr=await db.from('members').select('*')
+  members=mr.data||[]
   const from=`${scY}-${pad(scMo+1)}-01`
   const to=`${scY}-${pad(scMo+1)}-${new Date(scY,scMo+1,0).getDate()}`
-  const{data:sc}=await db.from('schedules').select('*,site:sites(name),member:members(name)').gte('work_date',from).lte('work_date',to)
-  schedules=sc||[]
+  const{data:evts}=await db.from('cal_events').select('*,event_members:cal_event_members(member:members(id,name))').gte('work_date',from).lte('work_date',to).order('work_date')
+  const events=evts||[]
   const days=['일','월','화','수','목','금','토']
   const dim=new Date(scY,scMo+1,0).getDate()
   const firstDay=new Date(scY,scMo,1).getDay()
   const td=today()
   document.getElementById('hdr-s').textContent=`${scY}년 ${scMo+1}월`
 
-  // 날짜별 배정 요약
+  // 날짜별 이벤트 맵
   const byDate={}
-  schedules.forEach(s=>{if(!byDate[s.work_date])byDate[s.work_date]=[];byDate[s.work_date].push(s)})
+  events.forEach(e=>{
+    if(!byDate[e.work_date])byDate[e.work_date]=[]
+    byDate[e.work_date].push(e)
+  })
 
   document.getElementById('main').innerHTML=`
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
       <button class="bs" onclick="scMo=scMo>0?scMo-1:11;if(scMo===11)scY--;rSchedule()">◀</button>
       <div style="font-size:15px;font-weight:600;color:var(--navy)">${scY}년 ${scMo+1}월</div>
       <button class="bs" onclick="scMo=scMo<11?scMo+1:0;if(scMo===0)scY++;rSchedule()">▶</button>
     </div>
 
-    <div style="background:var(--white);border:.5px solid var(--border);border-radius:12px;padding:10px;margin-bottom:14px">
-      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:6px">
-        ${days.map((d,i)=>`<div style="text-align:center;font-size:10px;font-weight:600;color:${i===0?'#EF4444':i===6?'#2E6DA4':'var(--text2)'};padding-bottom:4px">${d}</div>`).join('')}
+    <div style="background:var(--white);border:.5px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:14px">
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);background:var(--navy)">
+        ${days.map((d,i)=>`<div style="text-align:center;font-size:11px;font-weight:600;color:${i===0?'#FCA5A5':i===6?'#93C5FD':'rgba(255,255,255,.8)'};padding:8px 0">${d}</div>`).join('')}
       </div>
-      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px">
-        ${Array(firstDay).fill('<div></div>').join('')}
+      <div style="display:grid;grid-template-columns:repeat(7,1fr)">
+        ${Array(firstDay).fill(0).map(()=>`<div style="min-height:64px;background:#F8FAFC;border-right:.5px solid var(--border);border-bottom:.5px solid var(--border)"></div>`).join('')}
         ${Array.from({length:dim},(_,i)=>{
           const day=i+1
           const dstr=`${scY}-${pad(scMo+1)}-${pad(day)}`
           const isT=dstr===td
           const isSun=new Date(scY,scMo,day).getDay()===0
           const isSat=new Date(scY,scMo,day).getDay()===6
-          const daySchs=byDate[dstr]||[]
-          return `<div style="min-height:52px;border-radius:6px;padding:3px;background:${isT?'#EEF4FF':'transparent'};border:${isT?'.5px solid var(--blue)':'.5px solid transparent'};cursor:${me.isAdmin?'pointer':'default'}"${me.isAdmin?` onclick="openScAdd('${dstr}')"`:''}> 
-            <div style="font-size:11px;font-weight:${isT?700:400};color:${isT?'var(--blue)':isSun?'#EF4444':isSat?'#2E6DA4':'var(--text)'};text-align:center;margin-bottom:2px">${day}</div>
-            ${daySchs.slice(0,2).map(s=>`<div style="background:var(--navy);color:#fff;border-radius:2px;padding:1px 3px;font-size:8px;margin-bottom:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.member?.name||'?'}</div>`).join('')}
-            ${daySchs.length>2?`<div style="font-size:8px;color:var(--text2);text-align:center">+${daySchs.length-2}</div>`:''}
-            ${!daySchs.length&&me.isAdmin?`<div style="text-align:center;font-size:14px;color:var(--border);line-height:1;margin-top:2px">+</div>`:''}
+          const dayEvts=byDate[dstr]||[]
+          const isLastCol=(i+firstDay+1)%7===0
+          return `<div style="min-height:64px;padding:3px;border-right:${isLastCol?'none':'.5px solid var(--border)'};border-bottom:.5px solid var(--border);background:${isT?'#EEF4FF':'white'};cursor:pointer;vertical-align:top" onclick="openEvtAdd('${dstr}')">
+            <div style="font-size:11px;font-weight:${isT?700:400};color:${isT?'var(--blue)':isSun?'#EF4444':isSat?'#3B82F6':'var(--text)'};text-align:center;width:20px;height:20px;border-radius:50%;background:${isT?'var(--blue)':'transparent'};color:${isT?'#fff':isSun?'#EF4444':isSat?'#3B82F6':'var(--text)'};display:flex;align-items:center;justify-content:center;margin:0 auto 2px;font-size:12px">${day}</div>
+            ${dayEvts.slice(0,3).map(e=>`
+              <div onclick="event.stopPropagation();openEvtDetail('${e.id}')" style="background:${e.color||'#1A3A5C'};color:#fff;border-radius:3px;padding:1px 4px;font-size:9px;margin-bottom:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer">${e.title}</div>`).join('')}
+            ${dayEvts.length>3?`<div style="font-size:9px;color:var(--text2);text-align:center">+${dayEvts.length-3}개</div>`:''}
           </div>`
         }).join('')}
       </div>
     </div>
 
-    <div class="sec-hdr"><div class="sec-t">이번 달 팀원 배정 현황</div></div>
-    ${members.length?members.map((m,i)=>{
-      const my=schedules.filter(s=>s.member_id===m.id)
-      const siteNames=[...new Set(my.map(s=>s.site?.name).filter(Boolean))]
-      const[bg,fg]=COLORS[i%COLORS.length].split(':')
-      return `<div class="li" style="display:flex;align-items:center;gap:12px">
-        <div class="av" style="background:${bg};color:${fg}">${m.name[0]}</div>
-        <div style="flex:1">
-          <div style="font-size:14px;font-weight:600">${m.name}</div>
-          <div style="font-size:12px;color:var(--text2)">${my.length?`${my.length}일 배정 · ${siteNames.join(', ')}`:'이번 달 배정 없음'}</div>
+    <div class="sec-hdr"><div class="sec-t">이번 달 일정 목록</div></div>
+    ${events.length?events.map(e=>`
+      <div class="li" onclick="openEvtDetail('${e.id}')" style="border-left:3px solid ${e.color||'#1A3A5C'}">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div style="flex:1">
+            <div class="lt">${e.title}</div>
+            <div class="ls">${e.work_date}${e.end_date&&e.end_date!==e.work_date?' ~ '+e.end_date:''}</div>
+            ${e.event_members?.length?`<div style="display:flex;gap:4px;margin-top:5px;flex-wrap:wrap">${e.event_members.map(em=>`<span style="background:var(--bg);border:.5px solid var(--border);border-radius:20px;padding:2px 7px;font-size:11px">${em.member?.name||''}</span>`).join('')}</div>`:''}
+          </div>
+          <div style="width:10px;height:10px;border-radius:50%;background:${e.color||'#1A3A5C'};margin-top:4px;flex-shrink:0"></div>
         </div>
-        <div style="font-size:13px;font-weight:600;color:var(--navy)">${my.length}일</div>
-      </div>`
-    }).join(''):`<div class="empty"><div style="font-size:14px">팀원을 먼저 추가하세요</div></div>`}
+      </div>`).join(''):`<div class="empty"><div class="ei">📅</div><div style="font-size:14px">이번 달 일정이 없어요</div><div style="font-size:12px;margin-top:4px;opacity:.7">날짜를 탭해서 추가하세요</div></div>`}
   `
 }
 
-function openScAdd(date){
-  if(!sites.length){toast('진행중인 현장이 없어요',true);return}
-  const ex=schedules.filter(s=>s.work_date===date)
+function openEvtAdd(date){
   const[y,mo,d]=date.split('-')
   openSheet(`
-    <div class="st">${mo}월 ${parseInt(d)}일 배정</div>
-    ${ex.length?`<div style="background:var(--bg);border-radius:8px;padding:10px 12px;margin-bottom:14px">${ex.map(s=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:.5px solid var(--border)"><span style="font-size:13px"><b>${s.member?.name}</b> → ${s.site?.name}</span><button onclick="delSc('${s.id}')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:12px;font-weight:500">삭제</button></div>`).join('')}</div>`:'' }
-    <div class="fg"><label class="fl">팀원</label><select class="fi" id="f-mem" style="background:#fff">${members.map(m=>`<option value="${m.id}">${m.name}</option>`).join('')}</select></div>
-    <div class="fg"><label class="fl">현장</label><select class="fi" id="f-site" style="background:#fff">${sites.map(s=>`<option value="${s.id}">${s.name}</option>`).join('')}</select></div>
-    <input type="hidden" id="f-date" value="${date}">
-    <button class="btn bp" onclick="saveSc()">배정 추가</button>
+    <div class="st">${mo}월 ${parseInt(d)}일 — 일정 추가</div>
+    <div class="fg"><label class="fl">일정명 *</label><input class="fi" id="ev-title" placeholder="예) 강남빌딩 전기공사 착공"></div>
+    <div class="fr">
+      <div class="fg"><label class="fl">시작일</label><input class="fi" id="ev-start" type="date" value="${date}"></div>
+      <div class="fg"><label class="fl">종료일</label><input class="fi" id="ev-end" type="date" value="${date}"></div>
+    </div>
+    <div class="fg">
+      <label class="fl">색상</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px" id="ev-colors">
+        ${EVT_COLORS.map((c,i)=>`<div onclick="selectEvtColor('${c}')" data-color="${c}" style="width:28px;height:28px;border-radius:50%;background:${c};cursor:pointer;border:${i===0?'3px solid #000':'3px solid transparent'};box-sizing:border-box"></div>`).join('')}
+      </div>
+      <input type="hidden" id="ev-color" value="${EVT_COLORS[0]}">
+    </div>
+    <div class="fg">
+      <label class="fl">참여 팀원 (복수 선택)</label>
+      <div id="ev-members" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">
+        ${members.map(m=>`<div onclick="toggleEvtMember('${m.id}')" id="evm-${m.id}" style="padding:5px 12px;border-radius:20px;font-size:12px;font-weight:500;cursor:pointer;border:.5px solid var(--border);background:var(--white);color:var(--text2)">${m.name}</div>`).join('')}
+      </div>
+    </div>
+    <div class="fg"><label class="fl">메모</label><textarea class="fi" id="ev-notes" rows="2" placeholder="특이사항"></textarea></div>
+    <button class="btn bp" onclick="saveEvt()">일정 추가</button>
+  `)
+  window._evtSelectedMembers=[]
+}
+
+function selectEvtColor(color){
+  document.getElementById('ev-color').value=color
+  document.querySelectorAll('#ev-colors div').forEach(d=>{
+    d.style.border=d.dataset.color===color?'3px solid #000':'3px solid transparent'
+  })
+}
+
+function toggleEvtMember(id){
+  if(!window._evtSelectedMembers)window._evtSelectedMembers=[]
+  const idx=window._evtSelectedMembers.indexOf(id)
+  const el=document.getElementById('evm-'+id)
+  if(idx>-1){
+    window._evtSelectedMembers.splice(idx,1)
+    el.style.background='var(--white)';el.style.color='var(--text2)';el.style.borderColor='var(--border)'
+  }else{
+    window._evtSelectedMembers.push(id)
+    el.style.background='var(--navy)';el.style.color='#fff';el.style.borderColor='var(--navy)'
+  }
+}
+
+async function saveEvt(){
+  const title=document.getElementById('ev-title').value.trim()
+  if(!title){toast('일정명을 입력하세요',true);return}
+  const{data:evt}=await db.from('cal_events').insert({
+    title,
+    work_date:v('ev-start')||today(),
+    end_date:v('ev-end')||v('ev-start')||today(),
+    color:document.getElementById('ev-color').value,
+    notes:v('ev-notes')
+  }).select().single()
+  if(evt&&window._evtSelectedMembers?.length){
+    await db.from('cal_event_members').insert(
+      window._evtSelectedMembers.map(mid=>({event_id:evt.id,member_id:mid}))
+    )
+  }
+  toast('일정이 추가됐어요');closeSheet();rSchedule()
+}
+
+async function openEvtDetail(id){
+  const{data:e}=await db.from('cal_events').select('*,event_members:cal_event_members(member:members(id,name))').eq('id',id).single()
+  if(!e)return
+  const memberNames=e.event_members?.map(em=>em.member?.name).filter(Boolean).join(', ')||'없음'
+  openSheet(`
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+      <div style="width:14px;height:14px;border-radius:50%;background:${e.color||'#1A3A5C'};flex-shrink:0"></div>
+      <div class="st" style="margin:0">${e.title}</div>
+    </div>
+    <div style="background:var(--bg);border-radius:10px;padding:12px 14px;margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px"><span style="color:var(--text2)">날짜</span><span>${e.work_date}${e.end_date&&e.end_date!==e.work_date?' ~ '+e.end_date:''}</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px"><span style="color:var(--text2)">참여 팀원</span><span>${memberNames}</span></div>
+      ${e.notes?`<div style="display:flex;justify-content:space-between;font-size:13px"><span style="color:var(--text2)">메모</span><span>${e.notes}</span></div>`:''}
+    </div>
+    ${me.isAdmin?`<button class="btn bg-r" onclick="delEvt('${e.id}')">일정 삭제</button>`:''}
   `)
 }
-async function saveSc(){await db.from('schedules').insert({member_id:v('f-mem'),site_id:v('f-site'),work_date:v('f-date')});toast('배정됐어요');closeSheet();rSchedule()}
-async function delSc(id){await db.from('schedules').delete().eq('id',id);toast('삭제됐어요');closeSheet();rSchedule()}
+
+async function delEvt(id){
+  if(!confirm('이 일정을 삭제할까요?'))return
+  await db.from('cal_events').delete().eq('id',id)
+  toast('삭제됐어요');closeSheet();rSchedule()
+}
 
 // ══════════════ 견적 ══════════════
 async function rQuotes(){
