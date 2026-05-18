@@ -490,12 +490,17 @@ async function openMaterials(siteId,siteName){
 }
 
 function renderMats(siteId,siteName,mats){
+  _matsData=mats
   const done=mats.filter(m=>m.is_checked).length
   const pct=mats.length?Math.round(done/mats.length*100):0
+  const sn=siteName.replace(/'/g,'')
   let html=`<div class="st">${siteName} — 사용자재</div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
       <span style="font-size:13px;color:var(--text2)">${done}/${mats.length} 완료</span>
-      ${me.isAdmin?`<button class="bs" onclick="addMatForm('${siteId}','${siteName}')">+ 추가</button>`:''}
+      <div style="display:flex;gap:6px">
+        ${mats.length?`<button class="bs" style="color:var(--blue)" onclick="printMatsPDF('${sn}')">📄 PDF</button>`:''}
+        ${me.isAdmin?`<button class="bs" onclick="addMatForm('${siteId}','${sn}')">+ 추가</button>`:''}
+      </div>
     </div>`
   if(mats.length){
     html+=`<div style="background:var(--bg);border-radius:4px;height:6px;margin-bottom:14px;overflow:hidden"><div style="height:100%;background:var(--blue);border-radius:4px;width:${pct}%;transition:.3s"></div></div>`
@@ -516,21 +521,67 @@ function renderMats(siteId,siteName,mats){
 }
 
 function addMatForm(siteId,siteName){
-  openSheet(`<div class="st">자재 추가 — ${siteName}</div>
-    <div class="fg"><label class="fl">자재명 *</label><input class="fi" id="mat-name" placeholder="예) HIV 전선 2.5SQ"></div>
-    <div class="fr">
-      <div class="fg"><label class="fl">수량</label><input class="fi" id="mat-qty" type="number" placeholder="0" min="0"></div>
-      <div class="fg"><label class="fl">단위</label><input class="fi" id="mat-unit" placeholder="EA, M, 개..."></div>
+  _matSiteId=siteId; _matSiteName=siteName; _matSelected=null
+  const listHtml=MATS_LIST.map(m=>
+    `<div onclick="selectMatItem('${m.n.replace(/'/g,'').replace(/\(/g,'(').replace(/\)/g,')')}','${m.u}')"
+      style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:.5px solid var(--border);cursor:pointer;font-size:13px">
+      <span>${m.n}</span>
+      <span style="font-size:11px;color:var(--text2);flex-shrink:0;margin-left:8px">${m.u}</span>
+    </div>`
+  ).join('')
+  openSheet(`<div class="st">자재 선택 — ${siteName}</div>
+    <div class="fg">
+      <input class="fi" id="mat-search" oninput="filterMats()" placeholder="🔍 자재 검색..." autocomplete="off">
     </div>
-    <div class="fg"><label class="fl">메모</label><input class="fi" id="mat-notes" placeholder="규격, 색상 등"></div>
-    <button class="btn bp" onclick="saveMat('${siteId}','${siteName}')">추가</button>`)
+    <div id="mat-pick" style="border:.5px solid var(--border);border-radius:8px;max-height:240px;overflow-y:auto;margin-bottom:10px">${listHtml}</div>
+    <div id="mat-sel-box" style="display:none;background:#E8F0F8;border-radius:8px;padding:10px 14px;margin-bottom:10px">
+      <div style="font-size:12px;color:var(--text2);margin-bottom:2px">선택된 자재</div>
+      <div style="font-size:14px;font-weight:600;color:var(--navy)" id="mat-sel-name"></div>
+    </div>
+    <div class="fr">
+      <div class="fg"><label class="fl">수량</label><input class="fi" id="mat-qty" type="number" value="1" min="1" style="text-align:right"></div>
+      <div class="fg"><label class="fl">단위</label><input class="fi" id="mat-unit-show" readonly style="background:var(--bg);color:var(--text2)"></div>
+    </div>
+    <button class="btn bp" onclick="saveMat()">추가 (동일 자재 자동 누적)</button>`)
 }
 
-async function saveMat(siteId,siteName){
-  const name=document.getElementById('mat-name').value.trim()
-  if(!name){toast('자재명을 입력하세요',true);return}
-  await db.from('site_materials').insert({site_id:siteId,name,quantity:parseFloat(v('mat-qty'))||0,unit:v('mat-unit')||'EA',notes:v('mat-notes')})
-  toast('추가됐어요');openMaterials(siteId,siteName)
+function filterMats(){
+  const q=document.getElementById('mat-search').value.toLowerCase()
+  const filtered=q?MATS_LIST.filter(m=>m.n.toLowerCase().includes(q)):MATS_LIST
+  document.getElementById('mat-pick').innerHTML=filtered.map(m=>
+    `<div onclick="selectMatItem('${m.n.replace(/'/g,'')}','${m.u}')"
+      style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:.5px solid var(--border);cursor:pointer;font-size:13px;background:${_matSelected?.n===m.n?'#DBEAFE':'transparent'}">
+      <span>${m.n}</span>
+      <span style="font-size:11px;color:var(--text2);flex-shrink:0;margin-left:8px">${m.u}</span>
+    </div>`
+  ).join('')||'<div style="text-align:center;padding:20px;color:var(--text2);font-size:13px">검색 결과 없음</div>'
+}
+
+function selectMatItem(name,unit){
+  _matSelected={n:name,u:unit}
+  document.getElementById('mat-sel-name').textContent=name
+  document.getElementById('mat-sel-box').style.display='block'
+  document.getElementById('mat-unit-show').value=unit
+  // 목록에서 선택 강조
+  document.querySelectorAll('#mat-pick div').forEach(d=>{
+    d.style.background=d.querySelector('span')?.textContent===name?'#DBEAFE':'transparent'
+  })
+}
+
+async function saveMat(){
+  if(!_matSelected){toast('자재를 선택하세요',true);return}
+  const qty=parseFloat(document.getElementById('mat-qty').value)||1
+  if(qty<=0){toast('수량을 입력하세요',true);return}
+  // 동일 자재 누적 체크
+  const{data:exist}=await db.from('site_materials').select('*').eq('site_id',_matSiteId).eq('name',_matSelected.n).single().catch(()=>({data:null}))
+  if(exist){
+    await db.from('site_materials').update({quantity:(parseFloat(exist.quantity)||0)+qty}).eq('id',exist.id)
+    toast(`${_matSelected.n} ${exist.quantity}→${(parseFloat(exist.quantity)||0)+qty}${_matSelected.u} 누적됐어요`)
+  }else{
+    await db.from('site_materials').insert({site_id:_matSiteId,name:_matSelected.n,quantity:qty,unit:_matSelected.u,is_checked:false})
+    toast(`${_matSelected.n} ${qty}${_matSelected.u} 추가됐어요`)
+  }
+  openMaterials(_matSiteId,_matSiteName)
 }
 
 async function togMat(id,checked,siteId,siteName){
@@ -542,6 +593,76 @@ async function delMat(id,siteId,siteName){
   if(!confirm('삭제할까요?'))return
   await db.from('site_materials').delete().eq('id',id)
   toast('삭제했어요');openMaterials(siteId,siteName)
+}
+
+function printMatsPDF(siteName){
+  const mats=_matsData
+  if(!mats.length){toast('자재가 없어요',true);return}
+  const today_str=new Date().toLocaleDateString('ko-KR')
+  const checked=mats.filter(m=>m.is_checked).length
+  const totalQty=mats.reduce((a,m)=>a+(parseFloat(m.quantity)||0),0)
+  const rows=mats.map((m,i)=>`
+    <tr style="background:${i%2===0?'#F5F8FC':'#fff'}">
+      <td style="text-align:center">${i+1}</td>
+      <td>${m.name}</td>
+      <td style="text-align:center">${m.unit||'EA'}</td>
+      <td style="text-align:right;font-weight:600">${m.quantity||0}</td>
+      <td style="text-align:center;color:${m.is_checked?'#27AE60':'#ccc'};font-size:16px">${m.is_checked?'✓':'○'}</td>
+    </tr>`).join('')
+  const html=`<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>도아전기_자재목록_${siteName}</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Malgun Gothic','Apple SD Gothic Neo','맑은 고딕',sans-serif;padding:28px 24px;color:#1A3A5C;font-size:13px;max-width:600px;margin:0 auto}
+.hdr{text-align:center;padding-bottom:16px;border-bottom:2px solid #1A3A5C;margin-bottom:20px}
+.hdr h1{font-size:24px;font-weight:700;letter-spacing:4px;margin-bottom:6px}
+.hdr .site{font-size:15px;font-weight:600;margin-bottom:4px}
+.hdr .date{font-size:11px;color:#888}
+table{width:100%;border-collapse:collapse;margin-bottom:14px}
+th{background:#1A3A5C;color:#fff;padding:8px 10px;font-size:12px;font-weight:600}
+td{padding:7px 10px;border-bottom:1px solid #DDE6F0;font-size:13px}
+.summary{display:flex;justify-content:space-between;font-size:12px;font-weight:600;color:#1A3A5C;padding:8px 0;border-top:1px solid #1A3A5C}
+.footer{margin-top:16px;text-align:center;font-size:10px;color:#aaa;border-top:1px solid #eee;padding-top:12px}
+.print-btn{display:block;width:100%;padding:13px;margin-top:20px;background:#1A3A5C;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer;letter-spacing:1px}
+@media print{.print-btn{display:none}body{padding:10px}}
+</style>
+</head>
+<body>
+<div class="hdr">
+  <h1>⚡ 도 아 전 기</h1>
+  <div class="site">현장 사용자재 목록</div>
+  <div class="site" style="font-size:14px;margin-top:4px">${siteName}</div>
+  <div class="date">출력일: ${today_str}</div>
+</div>
+<table>
+  <thead>
+    <tr>
+      <th style="width:36px;text-align:center">No.</th>
+      <th>자재명</th>
+      <th style="width:48px;text-align:center">단위</th>
+      <th style="width:60px;text-align:right">수량</th>
+      <th style="width:44px;text-align:center">완료</th>
+    </tr>
+  </thead>
+  <tbody>${rows}</tbody>
+</table>
+<div class="summary">
+  <span>총 ${mats.length}개 품목</span>
+  <span>완료 ${checked} / ${mats.length} &nbsp;·&nbsp; 합계 수량 ${totalQty}</span>
+</div>
+<div class="footer">도아전기 (도아랩) · ${today_str} 출력</div>
+<button class="print-btn" onclick="window.print()">📄 PDF 저장 / 인쇄</button>
+</body>
+</html>`
+  const blob=new Blob([html],{type:'text/html;charset=utf-8'})
+  const url=URL.createObjectURL(blob)
+  const a=document.createElement('a')
+  a.href=url;a.target='_blank'
+  document.body.appendChild(a);a.click();document.body.removeChild(a)
+  setTimeout(()=>URL.revokeObjectURL(url),8000)
 }
 
 function showSiteForm(s=null){
@@ -576,7 +697,26 @@ async function delSite(id){
 // ══════════════ 일정 (네이버웍스 스타일) ══════════════
 let scY=new Date().getFullYear(),scMo=new Date().getMonth()
 const ECOLS=['#1A3A5C','#2E6DA4','#27AE60','#E67E22','#E74C3C','#8E44AD']
+const MATS_LIST=[
+  {n:'HIV 2.5SQ',u:'M'},{n:'CV 2.5SQ 3C',u:'M'},{n:'UTP 5E',u:'M'},
+  {n:'SF후렉시블 16mm',u:'M'},{n:'SF후렉시블 22mm',u:'M'},
+  {n:'난연 CD관 16mm',u:'M'},{n:'난연 CD관 22mm',u:'M'},
+  {n:'16원터치커넥터',u:'EA'},{n:'22원터치커넥터',u:'EA'},
+  {n:'전산볼트',u:'EA'},{n:'양날브라캣',u:'EA'},
+  {n:'레이스웨이 70x40 바디',u:'EA'},{n:'레이스웨이 70 기억자연결',u:'EA'},
+  {n:'레이스웨이 70 일자연결',u:'EA'},{n:'레이스웨이 70 티자연결',u:'EA'},
+  {n:'레이스웨이 40x40 바디',u:'EA'},{n:'레이스웨이 40 기억자연결',u:'EA'},
+  {n:'레이스웨이 40 일자연결',u:'EA'},{n:'레이스웨이 40 티자연결',u:'EA'},
+  {n:'케이가젯 석고보조대(비검사용)',u:'EA'},{n:'케이가젯 석고박스(검사용)',u:'EA'},
+  {n:'분전함 500x700',u:'EA'},{n:'분전함 600x700',u:'EA'},{n:'분전함 600x800',u:'EA'},
+  {n:'레일 블랙 3M',u:'EA'},{n:'레일 블랙 2M',u:'EA'},
+  {n:'레일 화이트 3M',u:'EA'},{n:'레일 화이트 2M',u:'EA'},
+  {n:'10SQ 4C',u:'M'},{n:'16SQ 4C',u:'M'},{n:'25SQ 4C',u:'M'},{n:'35SQ 4C',u:'M'},
+  {n:'GV 6SQ',u:'M'},{n:'GV 10SQ',u:'M'},{n:'GV 16SQ',u:'M'},{n:'GV 25SQ',u:'M'},{n:'GV 35SQ',u:'M'},
+  {n:'내선전공',u:'명'}
+]
 let evtMems=[]
+let _matSiteId='',_matSiteName='',_matSelected=null,_matsData=[]
 
 async function rSchedule(){
   document.getElementById('hdr-t').textContent='일정 관리'
